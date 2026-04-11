@@ -51,7 +51,28 @@ If the PyTorch install is wrong for your machine, install the correct PyTorch bu
 pip install -e .
 ```
 
-## 4. Download And Prepare Data
+## 4. Before You Edit: Create Your Own Branch
+
+Use one branch per method or task:
+
+```bash
+git checkout main
+git pull
+git checkout -b method/<your-method-name>
+```
+
+Examples:
+
+```bash
+git checkout -b method/promptsrc
+git checkout -b method/lp-plus-plus
+git checkout -b method/dpc
+git checkout -b method/promptkd
+```
+
+If you or a coding agent need to change `common/`, do it on your branch and mention the common change clearly when you ask for review.
+
+## 5. Download And Prepare Data
 
 Download the three Kaggle datasets:
 
@@ -79,7 +100,7 @@ python3 scripts/build_splits.py --datasets eurosat flowers102 stanford_cars --sh
 
 These commands create generated files under `data/`. Do not commit those generated files.
 
-## 5. Common Quick Check
+## 6. Common Quick Check
 
 A common quick check confirms that the shared repo code works. It does not test a method implementation.
 
@@ -92,7 +113,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 If these pass, the shared Python code imports and the deterministic split/result helpers work.
 
-## 6. Method Quick Check
+## 7. Method Quick Check
 
 A method quick check is for a method owner after they implement some code.
 
@@ -112,7 +133,7 @@ The goal is not to get a good number. The goal is to confirm:
 - your method evaluates on validation/test data
 - your method writes a result record
 
-## 7. How To Load The Shared Data In Your Method
+## 8. How To Load The Shared Data In Your Method
 
 Use this pattern inside your method code:
 
@@ -141,7 +162,7 @@ classnames = datasets.classnames
 
 Use `train_loader` for training, `val_loader` for choosing settings, and `test_loader` for final reporting.
 
-## 8. How To Log A Result
+## 9. How To Log A Result
 
 After evaluation, write one result record:
 
@@ -179,7 +200,31 @@ Then summarize results:
 python3 scripts/summarize_results.py results/vit_b32_256_few_shot_all_classes.jsonl --metric test/top1_accuracy
 ```
 
-## 9. If You Are Stuck
+## 10. Commit And Publish Your Branch
+
+Check what changed:
+
+```bash
+git status
+git diff
+```
+
+Add and commit only the files you intended to change:
+
+```bash
+git add <files-you-changed>
+git commit -m "Implement <method-name>"
+```
+
+Publish your branch:
+
+```bash
+git push -u origin <your-branch-name>
+```
+
+After you push to a published branch, let Antoine know. He will take a look at the code and create the pull request.
+
+## 11. If You Are Stuck
 
 Common issues:
 
@@ -189,7 +234,7 @@ Common issues:
 - Stanford Cars fails: its Kaggle folder layout may differ; do not hand-write a new split, ask before changing the loader.
 - GPU memory issue: start on CPU or reduce batch size for a method quick check.
 
-## 10. Words Used In This Repo
+## 12. Words Used In This Repo
 
 - **shot**: number of training images per class.
 - **seed**: random seed used to choose the few-shot images.

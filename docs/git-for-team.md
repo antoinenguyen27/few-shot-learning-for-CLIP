@@ -54,6 +54,8 @@ git commit -m "Implement <method-name> scaffold"
 git push -u origin <your-branch-name>
 ```
 
+After you push to a published branch, let Antoine know. He will take a look at the code and create the pull request.
+
 ## Avoid
 
 - Do not commit raw data, caches, checkpoints, or result dumps.
