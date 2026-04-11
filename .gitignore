@@ -1,0 +1,23 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Large or machine-local research artifacts.
+data/raw/*
+data/cache/*
+data/manifests/*.jsonl
+data/splits/**/*.json
+results/*
+
+# Keep the documented directories visible in fresh clones.
+!data/raw/.gitkeep
+!data/cache/.gitkeep
+!data/manifests/.gitkeep
+!data/splits/.gitkeep
+!results/.gitkeep
