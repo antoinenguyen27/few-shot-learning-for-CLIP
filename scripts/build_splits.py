@@ -24,6 +24,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])
     parser.add_argument("--protocol", default="few_shot_all_classes")
     parser.add_argument("--base-split-seed", type=int, default=0)
+    parser.add_argument("--val-ratio", type=float, default=0.2)
+    parser.add_argument("--test-ratio", type=float, default=0.2)
     parser.add_argument("--data-root", default=None, help="Defaults to ./data or FSL_CLIP_DATA.")
     parser.add_argument("--allow-fewer", action="store_true", help="Allow classes with fewer than k shots.")
     return parser.parse_args()
@@ -42,6 +44,8 @@ def main() -> None:
                     seed=seed,
                     protocol=args.protocol,
                     base_split_seed=args.base_split_seed,
+                    val_ratio=args.val_ratio,
+                    test_ratio=args.test_ratio,
                     allow_fewer=args.allow_fewer,
                 )
                 output = split_path(dataset, args.protocol, shots, seed, data_root=args.data_root)
