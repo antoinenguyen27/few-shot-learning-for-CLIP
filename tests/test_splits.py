@@ -69,6 +69,58 @@ class SplitTests(unittest.TestCase):
         self.assertEqual(len(split.test_ids), 4)
         self.assertEqual(split.metadata["base_split"], "stratified_from_all")
 
+    def test_train_val_without_test_carves_test_from_train(self) -> None:
+        records = [
+            ImageRecord(
+                dataset="toy",
+                sample_id=f"toy/{label}/{split}/{idx}",
+                image_path=f"{label}/{split}/{idx}.jpg",
+                label_id=label,
+                class_name=str(label),
+                source_split=split,
+            )
+            for label in range(2)
+            for split, count in (("train", 10), ("val", 3))
+            for idx in range(count)
+        ]
+        split = make_few_shot_split(
+            records,
+            dataset="toy",
+            shots=2,
+            seed=1,
+            test_ratio=0.2,
+        )
+        self.assertEqual(len(split.train_ids), 4)
+        self.assertEqual(len(split.val_ids), 6)
+        self.assertEqual(len(split.test_ids), 4)
+        self.assertEqual(split.metadata["base_split"], "source_train_val_test_from_train")
+
+    def test_train_only_carves_val_and_test_from_train(self) -> None:
+        records = [
+            ImageRecord(
+                dataset="toy",
+                sample_id=f"toy/{label}/{idx}",
+                image_path=f"{label}/{idx}.jpg",
+                label_id=label,
+                class_name=str(label),
+                source_split="train",
+            )
+            for label in range(2)
+            for idx in range(10)
+        ]
+        split = make_few_shot_split(
+            records,
+            dataset="toy",
+            shots=2,
+            seed=1,
+            val_ratio=0.2,
+            test_ratio=0.2,
+        )
+        self.assertEqual(len(split.train_ids), 4)
+        self.assertEqual(len(split.val_ids), 4)
+        self.assertEqual(len(split.test_ids), 4)
+        self.assertEqual(split.metadata["base_split"], "source_train_only_val_test_from_train")
+
     def test_split_json_round_trip(self) -> None:
         split = make_few_shot_split(make_records(), dataset="toy", shots=1, seed=1)
         with tempfile.TemporaryDirectory() as tmpdir:

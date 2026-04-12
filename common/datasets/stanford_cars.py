@@ -149,13 +149,18 @@ def _parse_official_mat_layout(raw_root: Path) -> list[ImageRecord]:
         return records
 
     train_annos = find_first_existing(raw_root, ("cars_train_annos.mat",))
-    test_annos = find_first_existing(raw_root, ("cars_test_annos_withlabels.mat",))
+    test_annos = find_first_existing(raw_root, ("cars_test_annos_withlabels.mat", "cars_test_annos.mat"))
     for annos_path, split in ((train_annos, "train"), (test_annos, "test")):
         if annos_path is None:
             continue
         payload = _loadmat(annos_path)
         for annotation in _annotation_items(payload):
-            records.append(_record_from_annotation(raw_root, annotation, split, class_names))
+            try:
+                records.append(_record_from_annotation(raw_root, annotation, split, class_names))
+            except KeyError:
+                if split == "test":
+                    continue
+                raise
     return records
 
 

@@ -14,6 +14,13 @@ Promptsrc/promptsrc/
 
 Do not create a private dataset loader or private few-shot sampler.
 
+This workspace now contains an OpenCLIP-native PromptSRC port. It implements
+learned text prompts, PromptSRC-style self-regulation against frozen zero-shot
+CLIP behavior, and Gaussian prompt aggregation over the trainable prompt state.
+The official repository's deep visual prompts require modified CLIP internals;
+this port keeps vision prompting disabled unless a method-local OpenCLIP visual
+prompt wrapper is added.
+
 ## Use The Common Pipeline
 
 Start with:
@@ -52,3 +59,20 @@ Run:
 python3 -m compileall Promptsrc common
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
+
+## Example Run
+
+From the repo root, after data manifests and splits exist:
+
+```bash
+python3 -m Promptsrc.promptsrc.runner --dataset eurosat --shots 1 --seed 1 --device cuda --epochs 50
+```
+
+For a CPU smoke test, use a tiny epoch count:
+
+```bash
+python3 -m Promptsrc.promptsrc.runner --dataset eurosat --shots 1 --seed 1 --device cpu --epochs 1 --batch-size 2 --eval-batch-size 16 --max-train-batches 1 --max-eval-batches 2 --no-log
+```
+
+Progress bars are enabled by default through `tqdm`. Add `--no-progress`
+for log files or non-interactive runs.

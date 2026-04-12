@@ -76,6 +76,26 @@ def canonical_train_val_test(
         val, train = _take_ratio_by_class(train, val_ratio, seed=base_split_seed)
         return train, val, test, {"base_split": "source_train_test_val_from_train", "val_ratio": val_ratio}
 
+    if train and val and not test:
+        test, train = _take_ratio_by_class(train, test_ratio, seed=base_split_seed + 10_000)
+        return train, val, test, {"base_split": "source_train_val_test_from_train", "test_ratio": test_ratio}
+
+    if train and not val and not test:
+        test, train_and_val = _take_ratio_by_class(train, test_ratio, seed=base_split_seed + 10_000)
+        adjusted_val_ratio = val_ratio / max(1.0 - test_ratio, 1e-8)
+        val, train = _take_ratio_by_class(train_and_val, adjusted_val_ratio, seed=base_split_seed)
+        return (
+            train,
+            val,
+            test,
+            {
+                "base_split": "source_train_only_val_test_from_train",
+                "val_ratio": val_ratio,
+                "test_ratio": test_ratio,
+                "adjusted_val_ratio_after_test_split": adjusted_val_ratio,
+            },
+        )
+
     if by_split.get("all"):
         all_records = by_split["all"]
         test, train_and_val = _take_ratio_by_class(all_records, test_ratio, seed=base_split_seed + 10_000)

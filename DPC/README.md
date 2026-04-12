@@ -14,6 +14,17 @@ DPC/dpc/
 
 DPC is a plug-in over a prompt-tuned backbone method. Record which backbone method/checkpoint you use.
 
+This workspace now contains an OpenCLIP-native DPC port. It uses a
+PromptSRC-style learned text prompt as the first-stage backbone, clones that
+prompt into a parallel DPC prompt, then trains the parallel prompt with a
+hard-negative objective and weighted dual-prompt inference.
+
+The official DPC repository is built around Dassl, OpenAI CLIP, backbone
+checkpoints, and DPC-specific `SPLE_XXX.json` annotation files. This port keeps
+the shared repo protocol intact: shared OpenCLIP, shared splits, shared metrics,
+and standardized `RunResult` logging. It does not claim paper-number parity with
+the official base-to-new DPC setup.
+
 ## Use The Common Pipeline
 
 Start with:
@@ -49,3 +60,20 @@ Run:
 python3 -m compileall DPC common
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
+
+## Example Run
+
+From the repo root, after data manifests and splits exist:
+
+```bash
+python3 -m DPC.dpc.runner --dataset eurosat --shots 1 --seed 1 --device cuda --backbone-epochs 20 --dpc-epochs 20
+```
+
+For a quick smoke test:
+
+```bash
+python3 -m DPC.dpc.runner --dataset eurosat --shots 1 --seed 1 --device cuda --backbone-epochs 1 --dpc-epochs 1 --max-train-batches 1 --max-eval-batches 2 --no-log
+```
+
+Use `--annotation-path` and `--backbone-checkpoint` to log provenance if you
+adapt official DPC annotation files or a saved backbone prompt checkpoint later.
