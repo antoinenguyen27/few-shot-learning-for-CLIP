@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img">
+<style>
+text{font-family:Arial,Helvetica,sans-serif;fill:#1f2528} .title{font-size:22px;font-weight:700} .subtitle{font-size:12px;fill:#526066} .axis{stroke:#293134;stroke-width:1.2} .grid{stroke:#d8dee2;stroke-width:1} .label{font-size:12px} .small{font-size:11px;fill:#526066} .value{font-size:12px;font-weight:700}
+</style>
+<rect width="720" height="420" fill="#fbfcfd"/>
+<text x="32" y="36" class="title">EuroSAT Protocol Split</text>
+<text x="32" y="56" class="subtitle">Train pool, validation, and test composition for few_shot_all_classes, shot=16, seed=1</text>
+<path d="M 210.00 230.00 L 210.00 100.00 A 130.00 130.00 0 1 1 133.59 335.17 Z" fill="#3f7f5f"/>
+<path d="M 210.00 230.00 L 133.59 335.17 A 130.00 130.00 0 0 1 86.36 189.83 Z" fill="#e0a43a"/>
+<path d="M 210.00 230.00 L 86.36 189.83 A 130.00 130.00 0 0 1 210.00 100.00 Z" fill="#c64f7a"/>
+<rect x="410" y="132" width="18" height="18" rx="4" fill="#3f7f5f"/>
+<text x="438" y="146" class="label">Train pool</text>
+<text x="438" y="164" class="small">16,200 images, 60.0%</text>
+<rect x="410" y="178" width="18" height="18" rx="4" fill="#e0a43a"/>
+<text x="438" y="192" class="label">Validation</text>
+<text x="438" y="210" class="small">5,400 images, 20.0%</text>
+<rect x="410" y="224" width="18" height="18" rx="4" fill="#c64f7a"/>
+<text x="438" y="238" class="label">Test</text>
+<text x="438" y="256" class="small">5,400 images, 20.0%</text>
+</svg>
