@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="520" viewBox="0 0 920 520" role="img">
+<style>
+text{font-family:Arial,Helvetica,sans-serif;fill:#1f2528} .title{font-size:22px;font-weight:700} .subtitle{font-size:12px;fill:#526066} .axis{stroke:#293134;stroke-width:1.2} .grid{stroke:#d8dee2;stroke-width:1} .label{font-size:12px} .small{font-size:11px;fill:#526066} .value{font-size:12px;font-weight:700}
+</style>
+<rect width="920" height="520" fill="#fbfcfd"/>
+<text x="32" y="36" class="title">Few-Shot Train Set Size</text>
+<text x="32" y="56" class="subtitle">Number of supervised train images per dataset and shot count</text>
+<line x1="88" y1="428.0" x2="884" y2="428.0" class="grid"/>
+<text x="78" y="432.0" text-anchor="end" class="small">0</text>
+<line x1="88" y1="357.6" x2="884" y2="357.6" class="grid"/>
+<text x="78" y="361.6" text-anchor="end" class="small">1,000</text>
+<line x1="88" y1="287.2" x2="884" y2="287.2" class="grid"/>
+<text x="78" y="291.2" text-anchor="end" class="small">2,000</text>
+<line x1="88" y1="216.8" x2="884" y2="216.8" class="grid"/>
+<text x="78" y="220.8" text-anchor="end" class="small">3,000</text>
+<line x1="88" y1="146.4" x2="884" y2="146.4" class="grid"/>
+<text x="78" y="150.4" text-anchor="end" class="small">4,000</text>
+<line x1="88" y1="76.0" x2="884" y2="76.0" class="grid"/>
+<text x="78" y="80.0" text-anchor="end" class="small">5,000</text>
+<line x1="88" y1="76" x2="88" y2="428" class="axis"/>
+<line x1="88" y1="428" x2="884" y2="428" class="axis"/>
+<text x="22" y="252.0" transform="rotate(-90 22 252.0)" text-anchor="middle" class="small">train images</text>
+<text x="167.6" y="476" text-anchor="middle" class="label">1</text>
+<rect x="100.0" y="427.3" width="39.7" height="0.7" rx="4" fill="#3f7f5f"/>
+<text x="119.9" y="421.3" text-anchor="middle" class="value">10</text>
+<rect x="147.7" y="420.8" width="39.7" height="7.2" rx="4" fill="#c64f7a"/>
+<text x="167.6" y="414.8" text-anchor="middle" class="value">102</text>
+<rect x="195.5" y="414.2" width="39.7" height="13.8" rx="4" fill="#496fb3"/>
+<text x="215.3" y="408.2" text-anchor="middle" class="value">196</text>
+<text x="326.8" y="476" text-anchor="middle" class="label">2</text>
+<rect x="259.2" y="426.6" width="39.7" height="1.4" rx="4" fill="#3f7f5f"/>
+<text x="279.1" y="420.6" text-anchor="middle" class="value">20</text>
+<rect x="306.9" y="413.6" width="39.7" height="14.4" rx="4" fill="#c64f7a"/>
+<text x="326.8" y="407.6" text-anchor="middle" class="value">204</text>
+<rect x="354.7" y="400.4" width="39.7" height="27.6" rx="4" fill="#496fb3"/>
+<text x="374.5" y="394.4" text-anchor="middle" class="value">392</text>
+<text x="486.0" y="476" text-anchor="middle" class="label">4</text>
+<rect x="418.4" y="425.2" width="39.7" height="2.8" rx="4" fill="#3f7f5f"/>
+<text x="438.3" y="419.2" text-anchor="middle" class="value">40</text>
+<rect x="466.1" y="399.3" width="39.7" height="28.7" rx="4" fill="#c64f7a"/>
+<text x="486.0" y="393.3" text-anchor="middle" class="value">408</text>
+<rect x="513.9" y="372.8" width="39.7" height="55.2" rx="4" fill="#496fb3"/>
+<text x="533.7" y="366.8" text-anchor="middle" class="value">784</text>
+<text x="645.2" y="476" text-anchor="middle" class="label">8</text>
+<rect x="577.6" y="422.4" width="39.7" height="5.6" rx="4" fill="#3f7f5f"/>
+<text x="597.5" y="416.4" text-anchor="middle" class="value">80</text>
+<rect x="625.3" y="370.6" width="39.7" height="57.4" rx="4" fill="#c64f7a"/>
+<text x="645.2" y="364.6" text-anchor="middle" class="value">816</text>
+<rect x="673.1" y="317.6" width="39.7" height="110.4" rx="4" fill="#496fb3"/>
+<text x="692.9" y="311.6" text-anchor="middle" class="value">1,568</text>
+<text x="804.4" y="476" text-anchor="middle" class="label">16</text>
+<rect x="736.8" y="416.7" width="39.7" height="11.3" rx="4" fill="#3f7f5f"/>
+<text x="756.7" y="410.7" text-anchor="middle" class="value">160</text>
+<rect x="784.5" y="313.1" width="39.7" height="114.9" rx="4" fill="#c64f7a"/>
+<text x="804.4" y="307.1" text-anchor="middle" class="value">1,632</text>
+<rect x="832.3" y="207.2" width="39.7" height="220.8" rx="4" fill="#496fb3"/>
+<text x="852.1" y="201.2" text-anchor="middle" class="value">3,136</text>
+<rect x="664" y="28" width="14" height="14" rx="3" fill="#3f7f5f"/>
+<text x="686" y="39" class="small">EuroSAT</text>
+<rect x="664" y="50" width="14" height="14" rx="3" fill="#c64f7a"/>
+<text x="686" y="61" class="small">Flowers102</text>
+<rect x="664" y="72" width="14" height="14" rx="3" fill="#496fb3"/>
+<text x="686" y="83" class="small">Stanford Cars</text>
+</svg>
