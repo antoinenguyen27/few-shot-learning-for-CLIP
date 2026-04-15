@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" role="img" aria-labelledby="title desc">
+<title id="title">PromptSRC Test Top-1 Accuracy</title>
+<desc id="desc">Line chart showing PromptSRC mean test top-1 accuracy for EuroSAT, Flowers102, and Stanford Cars across 1, 2, 4, 8, and 16 shots.</desc>
+<style>
+text{font-family:Arial,Helvetica,sans-serif;fill:#293134}
+.title{font-size:22px;font-weight:700}
+.subtitle{font-size:12px;fill:#526066}
+.axis{stroke:#293134;stroke-width:1.2}
+.grid{stroke:#d8dee2;stroke-width:1}
+.label{font-size:12px}
+.small{font-size:11px;fill:#526066}
+.value{font-size:12px;font-weight:700}
+.line{fill:none;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+</style>
+<rect width="960" height="560" fill="#f7f8fa"/>
+<text x="32" y="36" class="title">PromptSRC Test Top-1 Accuracy</text>
+<text x="32" y="56" class="subtitle">Mean accuracy across 3 seeds; x-axis is labelled examples per class</text>
+
+<text x="90" y="80" class="small">Higher is better</text>
+<line x1="90" y1="480.0" x2="750" y2="480.0" class="grid"/>
+<line x1="90" y1="424.3" x2="750" y2="424.3" class="grid"/>
+<line x1="90" y1="368.6" x2="750" y2="368.6" class="grid"/>
+<line x1="90" y1="312.9" x2="750" y2="312.9" class="grid"/>
+<line x1="90" y1="257.1" x2="750" y2="257.1" class="grid"/>
+<line x1="90" y1="201.4" x2="750" y2="201.4" class="grid"/>
+<line x1="90" y1="145.7" x2="750" y2="145.7" class="grid"/>
+<line x1="90" y1="90.0" x2="750" y2="90.0" class="grid"/>
+
+<line x1="90" y1="90" x2="90" y2="480" class="axis"/>
+<line x1="90" y1="480" x2="750" y2="480" class="axis"/>
+<text x="90" y="504" text-anchor="middle" class="small">1</text>
+<text x="255" y="504" text-anchor="middle" class="small">2</text>
+<text x="420" y="504" text-anchor="middle" class="small">4</text>
+<text x="585" y="504" text-anchor="middle" class="small">8</text>
+<text x="750" y="504" text-anchor="middle" class="small">16</text>
+<text x="420" y="536" text-anchor="middle" class="label">Shots per class</text>
+
+<text x="80" y="484.0" text-anchor="end" class="small">60%</text>
+<text x="80" y="428.3" text-anchor="end" class="small">65%</text>
+<text x="80" y="372.6" text-anchor="end" class="small">70%</text>
+<text x="80" y="316.9" text-anchor="end" class="small">75%</text>
+<text x="80" y="261.1" text-anchor="end" class="small">80%</text>
+<text x="80" y="205.4" text-anchor="end" class="small">85%</text>
+<text x="80" y="149.7" text-anchor="end" class="small">90%</text>
+<text x="80" y="94.0" text-anchor="end" class="small">95%</text>
+<text x="24" y="285" transform="rotate(-90 24 285)" text-anchor="middle" class="label">Test top-1 accuracy</text>
+
+<polyline points="90,430.4 255,387.7 420,354.6 585,298.1 750,274.8" class="line" stroke="#3f7f5f"/>
+<circle cx="90" cy="430.4" r="4.5" fill="#3f7f5f"/>
+<circle cx="255" cy="387.7" r="4.5" fill="#3f7f5f"/>
+<circle cx="420" cy="354.6" r="4.5" fill="#3f7f5f"/>
+<circle cx="585" cy="298.1" r="4.5" fill="#3f7f5f"/>
+<circle cx="750" cy="274.8" r="4.5" fill="#3f7f5f"/>
+<text x="762" y="279" class="value">78.4%</text>
+
+<polyline points="90,234.5 255,215.7 420,180.9 585,172.9 750,165.6" class="line" stroke="#c64f7a"/>
+<circle cx="90" cy="234.5" r="4.5" fill="#c64f7a"/>
+<circle cx="255" cy="215.7" r="4.5" fill="#c64f7a"/>
+<circle cx="420" cy="180.9" r="4.5" fill="#c64f7a"/>
+<circle cx="585" cy="172.9" r="4.5" fill="#c64f7a"/>
+<circle cx="750" cy="165.6" r="4.5" fill="#c64f7a"/>
+<text x="762" y="170" class="value">88.2%</text>
+
+<polyline points="90,145.1 255,137.0 420,136.6 585,134.2 750,133.3" class="line" stroke="#496fb3"/>
+<circle cx="90" cy="145.1" r="4.5" fill="#496fb3"/>
+<circle cx="255" cy="137.0" r="4.5" fill="#496fb3"/>
+<circle cx="420" cy="136.6" r="4.5" fill="#496fb3"/>
+<circle cx="585" cy="134.2" r="4.5" fill="#496fb3"/>
+<circle cx="750" cy="133.3" r="4.5" fill="#496fb3"/>
+<text x="762" y="137" class="value">91.1%</text>
+
+<rect x="800" y="118" width="14" height="14" rx="3" fill="#3f7f5f"/>
+<text x="822" y="130" class="label">EuroSAT</text>
+<text x="822" y="148" class="small">64.5% to 78.4%</text>
+<rect x="800" y="178" width="14" height="14" rx="3" fill="#c64f7a"/>
+<text x="822" y="190" class="label">Flowers102</text>
+<text x="822" y="208" class="small">82.0% to 88.2%</text>
+<rect x="800" y="238" width="14" height="14" rx="3" fill="#496fb3"/>
+<text x="822" y="250" class="label">Stanford Cars</text>
+<text x="822" y="268" class="small">90.1% to 91.1%</text>
+</svg>

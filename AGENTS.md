@@ -31,6 +31,7 @@ Use these shared modules instead of duplicating logic:
 - `LP++/`: LP++ integration. Python code should live under `LP++/lp_plus_plus/` because `LP++` is not import-safe.
 - `DPC/`: DPC integration.
 - `promptkd/`: PromptKD integration.
+- `ZeroShotCLIP/`: frozen zero-shot CLIP baseline.
 
 Each method directory contains a README describing its method-specific constraints.
 

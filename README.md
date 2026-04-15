@@ -14,6 +14,7 @@ START_HERE.md
 - LP++ owner: edit `LP++/`
 - DPC owner: edit `DPC/`
 - PromptKD owner: edit `promptkd/`
+- Zero-shot baseline: edit `ZeroShotCLIP/`
 
 Try not to edit `common/` unless you are intentionally changing the shared pipeline.
 
@@ -51,8 +52,14 @@ python3 scripts/build_splits.py --datasets eurosat flowers102 stanford_cars --sh
 Run local checks:
 
 ```bash
-python3 -m compileall common scripts Promptsrc 'LP++' DPC promptkd tests
+python3 -m compileall common scripts Promptsrc 'LP++' DPC promptkd ZeroShotCLIP tests
 python3 -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+Run the frozen zero-shot CLIP baseline:
+
+```bash
+python3 ZeroShotCLIP/zero_shot_clip/runner.py --dataset eurosat --device cpu
 ```
 
 Summarize results after methods start logging:

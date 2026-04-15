@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="500" viewBox="0 0 840 500" role="img" aria-labelledby="title desc">
+<title id="title">Zero-shot CLIP top-1 accuracy</title>
+<desc id="desc">Bar chart of zero-shot CLIP test top-1 accuracy for EuroSAT, Flowers102, and Stanford Cars.</desc>
+<style>
+text{font-family:Arial,Helvetica,sans-serif;fill:#1f2528} .title{font-size:22px;font-weight:700} .subtitle{font-size:12px;fill:#526066} .axis{stroke:#293134;stroke-width:1.2} .grid{stroke:#d8dee2;stroke-width:1} .label{font-size:12px} .small{font-size:11px;fill:#526066} .value{font-size:13px;font-weight:700}
+</style>
+<rect width="840" height="500" fill="#fbfcfd"/>
+<text x="32" y="36" class="title">Zero-shot CLIP Top-1 Accuracy</text>
+<text x="32" y="56" class="subtitle">test/top1_accuracy from results/zero_shot_clip.jsonl; shots=0</text>
+<line x1="86" y1="418.0" x2="800" y2="418.0" class="grid"/>
+<text x="76" y="422.0" text-anchor="end" class="small">0.0%</text>
+<line x1="86" y1="350.8" x2="800" y2="350.8" class="grid"/>
+<text x="76" y="354.8" text-anchor="end" class="small">20.0%</text>
+<line x1="86" y1="283.6" x2="800" y2="283.6" class="grid"/>
+<text x="76" y="287.6" text-anchor="end" class="small">40.0%</text>
+<line x1="86" y1="216.4" x2="800" y2="216.4" class="grid"/>
+<text x="76" y="220.4" text-anchor="end" class="small">60.0%</text>
+<line x1="86" y1="149.2" x2="800" y2="149.2" class="grid"/>
+<text x="76" y="153.2" text-anchor="end" class="small">80.0%</text>
+<line x1="86" y1="82.0" x2="800" y2="82.0" class="grid"/>
+<text x="76" y="86.0" text-anchor="end" class="small">100.0%</text>
+<line x1="86" y1="82" x2="86" y2="418" class="axis"/>
+<line x1="86" y1="418" x2="800" y2="418" class="axis"/>
+<text x="22" y="250.0" transform="rotate(-90 22 250.0)" text-anchor="middle" class="small">Test top-1 accuracy</text>
+<rect x="166.0" y="219.1" width="78" height="198.9" rx="6" fill="#3f7f5f"/>
+<text x="205.0" y="211.1" text-anchor="middle" class="value">59.2%</text>
+<text x="205.0" y="454" text-anchor="middle" class="label">EuroSAT</text>
+<rect x="404.0" y="157.9" width="78" height="260.1" rx="6" fill="#c64f7a"/>
+<text x="443.0" y="149.9" text-anchor="middle" class="value">77.4%</text>
+<text x="443.0" y="454" text-anchor="middle" class="label">Flowers102</text>
+<rect x="642.0" y="115.7" width="78" height="302.3" rx="6" fill="#496fb3"/>
+<text x="681.0" y="107.7" text-anchor="middle" class="value">90.0%</text>
+<text x="681.0" y="454" text-anchor="middle" class="label">Stanford Cars</text>
+</svg>

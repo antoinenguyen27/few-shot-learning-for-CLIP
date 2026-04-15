@@ -23,6 +23,7 @@ Start with `START_HERE.md`. This page is a reference for what each directory doe
 - `LP++/`: LP++ method workspace. Python package code goes under `LP++/lp_plus_plus/`.
 - `DPC/`: DPC method workspace.
 - `promptkd/`: PromptKD method workspace.
+- `ZeroShotCLIP/`: frozen zero-shot OpenCLIP baseline workspace.
 
 ## Common Code Reference
 
@@ -48,3 +49,7 @@ Start with `START_HERE.md`. This page is a reference for what each directory doe
 - `scripts/build_manifests.py`: build generated manifest JSONL files.
 - `scripts/build_splits.py`: build deterministic few-shot split JSON files.
 - `scripts/summarize_results.py`: summarize result JSONL files across seeds.
+
+## Baseline Commands
+
+- `python3 ZeroShotCLIP/zero_shot_clip/runner.py --dataset eurosat --device cpu`: run the frozen zero-shot CLIP control row.

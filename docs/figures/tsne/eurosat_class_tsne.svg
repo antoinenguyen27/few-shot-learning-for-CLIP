@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="640" viewBox="0 0 900 640" role="img">
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#1f2528}.title{font-size:22px;font-weight:700}.subtitle{font-size:12px;fill:#526066}.small{font-size:11px;fill:#526066}.axis{stroke:#d8dee2;stroke-width:1}</style>
+<rect width="900" height="640" fill="#fbfcfd"/>
+<text x="32" y="36" class="title">EuroSAT t-SNE by Class</text>
+<text x="32" y="56" class="subtitle">OpenCLIP image embeddings, sampled from the selected split source</text>
+<rect x="56" y="78" width="616" height="510" fill="#ffffff" stroke="#d8dee2" rx="8"/>
+<circle cx="317.45" cy="522.71" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="286.55" cy="506.41" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="322.47" cy="525.74" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="469.96" cy="425.05" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="276.81" cy="484.25" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="355.49" cy="505.83" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="343.41" cy="504.13" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="318.77" cy="485.61" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="292.66" cy="507.81" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="458.80" cy="452.82" r="3.2" fill="#bd3232" fill-opacity="0.72"/>
+<circle cx="135.15" cy="524.27" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="149.52" cy="519.61" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="186.96" cy="495.23" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="142.37" cy="505.16" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="359.80" cy="343.35" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="181.99" cy="476.07" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="396.07" cy="333.54" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="115.60" cy="533.63" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="197.37" cy="462.83" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="89.00" cy="550.66" r="3.2" fill="#32bd5b" fill-opacity="0.72"/>
+<circle cx="185.86" cy="490.02" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="313.72" cy="410.12" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="383.91" cy="376.22" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="297.67" cy="365.46" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="331.62" cy="380.28" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="389.15" cy="377.45" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="330.52" cy="423.28" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="438.39" cy="365.35" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="232.14" cy="444.22" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="315.01" cy="369.86" r="3.2" fill="#8332bd" fill-opacity="0.72"/>
+<circle cx="578.31" cy="202.33" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="574.21" cy="221.12" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="524.33" cy="340.04" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="639.00" cy="261.38" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="598.59" cy="313.10" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="605.71" cy="226.09" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="607.72" cy="295.26" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="489.36" cy="452.61" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="633.50" cy="252.20" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="511.42" cy="185.33" r="3.2" fill="#bdac32" fill-opacity="0.72"/>
+<circle cx="530.39" cy="128.38" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="548.37" cy="126.12" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="573.56" cy="112.97" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="561.37" cy="163.54" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="509.84" cy="109.07" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="494.45" cy="105.32" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="532.16" cy="148.91" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="541.10" cy="156.94" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="519.95" cy="114.61" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="473.49" cy="121.95" r="3.2" fill="#32a6bd" fill-opacity="0.72"/>
+<circle cx="361.66" cy="461.15" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="430.98" cy="338.86" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="489.28" cy="379.86" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="591.44" cy="365.00" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="482.90" cy="347.02" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="467.72" cy="348.62" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="463.37" cy="337.33" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="597.05" cy="348.21" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="527.81" cy="359.86" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="493.04" cy="361.72" r="3.2" fill="#bd327e" fill-opacity="0.72"/>
+<circle cx="446.44" cy="401.75" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="445.85" cy="426.78" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="529.85" cy="327.12" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="272.41" cy="386.75" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="509.17" cy="408.49" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="524.38" cy="402.91" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="559.36" cy="337.07" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="309.06" cy="487.04" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="267.15" cy="419.64" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="439.63" cy="446.31" r="3.2" fill="#55bd32" fill-opacity="0.72"/>
+<circle cx="424.09" cy="147.05" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="469.46" cy="164.17" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="443.13" cy="136.60" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="438.20" cy="162.11" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="492.57" cy="156.78" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="410.44" cy="147.88" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="507.08" cy="157.05" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="483.29" cy="181.42" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="251.45" cy="365.00" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="448.82" cy="140.97" r="3.2" fill="#3832bd" fill-opacity="0.72"/>
+<circle cx="584.32" cy="305.83" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="479.32" cy="259.41" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="476.33" cy="322.48" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="486.72" cy="284.14" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="548.22" cy="265.59" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="543.45" cy="263.07" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="524.76" cy="255.95" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="558.27" cy="366.44" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="493.43" cy="309.21" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="549.88" cy="302.83" r="3.2" fill="#bd6132" fill-opacity="0.72"/>
+<circle cx="91.38" cy="537.86" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<circle cx="219.41" cy="489.69" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<circle cx="215.65" cy="515.06" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<circle cx="109.68" cy="514.88" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<circle cx="133.01" cy="555.49" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<circle cx="148.15" cy="555.19" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<circle cx="186.00" cy="526.15" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<circle cx="123.62" cy="559.44" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<circle cx="243.64" cy="455.87" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<circle cx="149.11" cy="560.68" r="3.2" fill="#32bd89" fill-opacity="0.72"/>
+<text x="56" y="618" class="small">t-SNE axes are unitless; distances are qualitative local-neighborhood structure.</text>
+<rect x="696" y="78" width="13" height="13" rx="3" fill="#bd3232"/>
+<text x="716" y="89" class="small">annual crop land</text>
+<rect x="696" y="100" width="13" height="13" rx="3" fill="#32bd5b"/>
+<text x="716" y="111" class="small">forest</text>
+<rect x="696" y="122" width="13" height="13" rx="3" fill="#8332bd"/>
+<text x="716" y="133" class="small">herbaceous vegetation</text>
+<rect x="696" y="144" width="13" height="13" rx="3" fill="#bdac32"/>
+<text x="716" y="155" class="small">highway</text>
+<rect x="696" y="166" width="13" height="13" rx="3" fill="#32a6bd"/>
+<text x="716" y="177" class="small">industrial buildings</text>
+<rect x="696" y="188" width="13" height="13" rx="3" fill="#bd327e"/>
+<text x="716" y="199" class="small">pasture land</text>
+<rect x="696" y="210" width="13" height="13" rx="3" fill="#55bd32"/>
+<text x="716" y="221" class="small">permanent crop land</text>
+<rect x="696" y="232" width="13" height="13" rx="3" fill="#3832bd"/>
+<text x="716" y="243" class="small">residential buildings</text>
+<rect x="696" y="254" width="13" height="13" rx="3" fill="#bd6132"/>
+<text x="716" y="265" class="small">river</text>
+<rect x="696" y="276" width="13" height="13" rx="3" fill="#32bd89"/>
+<text x="716" y="287" class="small">sea or lake</text>
+</svg>

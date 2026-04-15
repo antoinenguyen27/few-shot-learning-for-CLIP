@@ -69,6 +69,7 @@ python3 scripts/summarize_results.py results/vit_b32_256_few_shot_all_classes.js
 
 ## Method Notes
 
+- Zero-shot CLIP is the frozen control row. It should log `shots=0`, use dataset templates, and fit no train images.
 - LP++ is feature-based. It should use shared OpenCLIP feature helpers and shared cache paths.
 - PromptSRC should keep frozen CLIP/reference behavior explicit in result notes.
 - PromptKD must record teacher model and unlabeled distillation data source.

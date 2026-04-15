@@ -10,6 +10,7 @@ Implement your method inside your assigned method folder:
 - `LP++/`
 - `DPC/`
 - `promptkd/`
+- `ZeroShotCLIP/`
 
 Do not create your own data split. Do not create your own OpenCLIP model setup. Use the common helpers below.
 
@@ -99,6 +100,11 @@ append_result(
 
 Replace the zeros with your real metrics.
 Replace `LP++` with your method name.
+
+For the frozen zero-shot CLIP baseline, `fit` should only build the text
+classifier from class names and templates. It should log `shots=0`, avoid
+inspecting train images, and avoid choosing settings from validation/test
+accuracy.
 
 Summarize the file with:
 

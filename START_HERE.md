@@ -24,6 +24,7 @@ Promptsrc/   PromptSRC method owner works here
 LP++/        LP++ method owner works here
 DPC/         DPC method owner works here
 promptkd/    PromptKD method owner works here
+ZeroShotCLIP/ frozen zero-shot CLIP baseline
 ```
 
 Most people should not edit:
@@ -107,7 +108,7 @@ A common quick check confirms that the shared repo code works. It does not test 
 Run:
 
 ```bash
-python3 -m compileall common scripts Promptsrc 'LP++' DPC promptkd tests
+python3 -m compileall common scripts Promptsrc 'LP++' DPC promptkd ZeroShotCLIP tests
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
@@ -132,6 +133,12 @@ The goal is not to get a good number. The goal is to confirm:
 - your method trains without crashing
 - your method evaluates on validation/test data
 - your method writes a result record
+
+For the frozen zero-shot baseline, use:
+
+```bash
+python3 ZeroShotCLIP/zero_shot_clip/runner.py --dataset eurosat --device cpu --no-log
+```
 
 ## 8. How To Load The Shared Data In Your Method
 
