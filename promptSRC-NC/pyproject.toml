@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "promptsrc-nc"
+version = "0.1.0"
+description = "Standalone PyTorch/OpenCLIP + Modal implementation of PromptSRC-NC."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "modal>=1.1.0",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "open_clip_torch>=2.24",
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "scipy>=1.10",
+  "scikit-learn>=1.3",
+  "Pillow>=10.0",
+  "tqdm>=4.66",
+  "kagglehub>=0.3",
+  "orjson>=3.9",
+  "psutil>=5.9",
+  "pynvml>=11.5",
+  "rich>=13.7",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+include = ["promptsrc_nc*"]
+
