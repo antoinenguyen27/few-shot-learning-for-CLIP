@@ -1,37 +1,130 @@
-# few-shot-learning-for-CLIP
+# PromptSRC-NC
 
-This repo is for a controlled few-shot CLIP comparison. The team should implement methods in their assigned method folders, while the shared data loading, OpenCLIP setup, split generation, metrics, and result logging live in `common/`.
+Neighborhood-Consistent PromptSRC for unlabeled geometry-aware few-shot CLIP adaptation.
 
-If you are new to the repo, start here:
+This repository is now a research workspace for a new method, not only a method reproduction sandbox. The active project asks:
+
+> Can a completed few-shot PromptSRC solution be improved by a short second-stage adaptation that uses unlabeled target images only through frozen-CLIP nearest-neighbor relations?
+
+The proposed method, **PromptSRC-NC: Neighborhood-Consistent PromptSRC**, starts from official PromptSRC, constructs frozen-CLIP nearest-neighbor pairs over unlabeled target images, and continues prompt optimization with a symmetric prediction-consistency loss over those pairs. It does not assign pseudo-labels, train a teacher/student system, recover a full manifold, or discover new classes.
+
+## Research Claim
+
+The intended contribution is modest and testable:
+
+> A short, teacher-free unlabeled adaptation stage can improve PromptSRC when it uses meaningful frozen-CLIP neighbor structure. The shuffled-neighbor control tests whether any gain comes from real local geometry rather than extra training time or arbitrary smoothing.
+
+If results are mixed, the scientifically valid conclusion is dataset-conditional: frozen CLIP neighborhoods may help when they align with class semantics and hurt when fine-grained classes are visually close but label-distinct.
+
+## Active Method
+
+Primary method name:
 
 ```text
-START_HERE.md
+PromptSRC-NC: Neighborhood-Consistent PromptSRC
 ```
 
-## What You Should Edit
+Proposal title:
 
-- PromptSRC owner: edit `Promptsrc/`
-- LP++ owner: edit `LP++/`
-- DPC owner: edit `DPC/`
-- PromptKD owner: edit `promptkd/`
+```text
+Neighborhood-Consistent PromptSRC: Using Unlabeled Target Geometry for Few-Shot CLIP Prompt Learning
+```
 
-Try not to edit `common/` unless you are intentionally changing the shared pipeline.
+Core flow:
 
-## Shared Experiment Defaults
+1. Train official PromptSRC on the few-shot labeled split.
+2. Embed unlabeled training images with the unprompted frozen CLIP image encoder.
+3. Build fixed mutual nearest-neighbor pairs.
+4. Initialize from the completed PromptSRC checkpoint.
+5. Continue prompt optimization with PromptSRC losses plus neighborhood prediction consistency.
+6. Compare against a shuffled-neighbor control with the same images, same loss, and same training time.
 
-- Model: OpenCLIP `ViT-B-32-256`
-- Pretrained weights: `datacomp_s34b_b86k`
-- Image preprocessing: OpenCLIP train/eval transforms
-- Datasets: EuroSAT, Oxford Flowers 102, Stanford Cars
-- Shots: `1, 2, 4, 8, 16`
-- Seeds: `1, 2, 3`
-- First protocol: `few_shot_all_classes`
-- Main metric: test top-1 accuracy
-- Secondary metric: macro accuracy
+## Repository Layout
 
-## Quick Commands
+- `promptSRC-NC/`: active research proposal and technical specification for the new method.
+- `method_reproductions/`: archived reproduction/comparison scaffolding for PromptSRC, LP++, DPC, and PromptKD.
+- `common/`: shared data, OpenCLIP, split, metric, feature-cache, and result helpers from the earlier comparison scaffold.
+- `scripts/`: thin command-line wrappers around `common/`.
+- `data/`: local generated manifests, splits, caches, and raw-data pointers. Do not commit generated data.
+- `results/`: local result logs. Do not commit result dumps unless explicitly requested.
+- `tests/`: tests for shared infrastructure and archived method code.
 
-Create the environment:
+## Source Of Truth
+
+Use sources in this order:
+
+1. The official papers and official repositories for PromptSRC, LP++, DPC, PromptKD, CLIP, and related baselines.
+2. `promptSRC-NC/neighborhood_promptsrc_research_proposal.md` for the research framing.
+3. `promptSRC-NC/neighborhood_promptsrc_technical_spec.md` for the active implementation plan.
+4. `common/` and `scripts/` for reusable local infrastructure.
+5. `method_reproductions/` only as historical context.
+
+The archived reproductions may be incomplete or inaccurate. Do not treat them as faithful implementations of the papers unless they have been checked against the official paper and official repo.
+
+## Primary Experiment
+
+Datasets:
+
+- Flowers102, using PromptSRC dataset arg `oxford_flowers`
+- EuroSAT, using PromptSRC dataset arg `eurosat`
+- Stanford Cars, using PromptSRC dataset arg `stanford_cars`
+
+Primary setting:
+
+- Few-shot all-class learning.
+- Start with 16 shots.
+- Use seeds `1, 2, 3`.
+- Use the remaining training-split images as the unlabeled pool.
+- Do not use test images in the unlabeled pool.
+
+Required variants:
+
+1. `PromptSRC`: official baseline.
+2. `PromptSRC-NC`: real frozen-CLIP neighbor pairs.
+3. `PromptSRC-NC shuffled`: shuffled-neighbor control.
+
+Primary metric:
+
+```text
+test top-1 accuracy, reported as mean +/- standard deviation over seeds
+```
+
+Required diagnostics:
+
+- number of unlabeled images and neighbor pairs;
+- mean real-pair and shuffled-pair cosine similarity;
+- edge disagreement on real neighbor pairs;
+- mean JS divergence on real neighbor pairs;
+- mean entropy and confidence on the unlabeled pool.
+
+## Scientific Guardrails
+
+- Do not invent new train/validation/test splits inside a method folder.
+- Do not tune hyperparameters on test results.
+- Do not mix strict few-shot and transductive results.
+- Do not use test images as unlabeled data in the primary setting.
+- Do not describe PromptSRC-NC as pseudo-labeling.
+- Do not add pseudo-labeling, entropy minimization, EMA teachers, PromptKD-style distillation, graph Laplacian variants, relation preservation, confidence thresholds, or graph-refresh schedules to the main method unless the research question is explicitly changed.
+- Do not commit datasets, model weights, checkpoints, feature caches, neighbor caches, or large result dumps.
+- Do not use notebooks for implementation.
+
+## Implementation Notes
+
+The active technical spec is written around the official PromptSRC repository and its Dassl/OpenAI-CLIP-style mechanics. Preserve official PromptSRC behavior first: backbone, transforms, prompt depths, PromptSRC self-regularization losses, GPA checkpointing, and dataset split semantics.
+
+The earlier `common/` OpenCLIP scaffold is useful for shared data inspection, split/result utilities, and archived method comparison work. It should not override official PromptSRC behavior for PromptSRC-NC when the two differ.
+
+For the main PromptSRC-NC implementation, keep the method narrow:
+
+- mutual top-1 neighbors with top-5 fallback only if too few pairs are obtained;
+- global defaults for `LAMBDA_NC`, Stage 2 epochs, and neighbor `k`;
+- Stage 2 initialized from PromptSRC GPA weights;
+- Stage 2 checkpoint as final prompt weights, without adding a new GPA knob unless unavoidable;
+- all method deviations recorded in metadata and result notes.
+
+## Setup
+
+For the shared local Python utilities:
 
 ```bash
 python3 -m venv .venv
@@ -39,7 +132,7 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Download and prepare data:
+Prepare local data for the shared scaffold:
 
 ```bash
 python3 scripts/download_data.py --datasets eurosat flowers102 stanford_cars
@@ -48,33 +141,21 @@ python3 scripts/build_manifests.py --datasets eurosat flowers102 stanford_cars
 python3 scripts/build_splits.py --datasets eurosat flowers102 stanford_cars --shots 1 2 4 8 16 --seeds 1 2 3
 ```
 
-Run local checks:
+For PromptSRC-NC runs that use the official PromptSRC codebase, follow the environment and dataset layout in:
 
-```bash
-python3 -m compileall common scripts Promptsrc 'LP++' DPC promptkd tests
-python3 -m unittest discover -s tests -p 'test_*.py' -v
+```text
+promptSRC-NC/neighborhood_promptsrc_technical_spec.md
 ```
 
-Summarize results after methods start logging:
+## Reading Order
 
-```bash
-python3 scripts/summarize_results.py results/vit_b32_256_few_shot_all_classes.jsonl --metric test/top1_accuracy
-```
+Start here:
 
-## Rules For Valid Results
+1. `promptSRC-NC/neighborhood_promptsrc_research_proposal.md`
+2. `promptSRC-NC/neighborhood_promptsrc_technical_spec.md`
+3. Official PromptSRC paper and repository
+4. `method_reproductions/README.md`
+5. `method_reproductions/docs/method-contract.md`
+6. `method_reproductions/docs/experiment-protocol.md`
 
-- Use the shared split JSON files.
-- Train on train data only.
-- Use validation data for choices like learning rate or epoch selection.
-- Use test data only for final reporting.
-- Do not create private few-shot samples inside a method folder.
-- Do not change preprocessing for one method unless the team agrees.
-- Log teacher models, extra annotations, unlabeled data, or checkpoints in the result record.
-
-More detail:
-
-- `START_HERE.md`: beginner walkthrough.
-- `docs/data.md`: dataset and split details.
-- `docs/method-contract.md`: how method code should use `common/`.
-- `docs/results.md`: how to log and summarize results.
-- `docs/git-for-team.md`: beginner Git workflow.
+Use the archived reproduction docs to understand the earlier scaffold and its constraints. Use official papers and repos to decide what the methods actually do.
