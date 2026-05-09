@@ -656,7 +656,8 @@ Add standalone config fields, for example in a dataclass or YAML file:
 neighbor_k = 1
 min_pairs_fraction = 0.25
 fallback_k = 5
-lambda_nc = 1.0
+lambda_nc_max = 1.0
+lambda_nc_warmup_epochs = 1
 stage2_epochs = 5
 stage2_lr = 0.00025
 pair_batch_size = 8
@@ -673,17 +674,27 @@ Default values should not be tuned per dataset for the main experiment.
 The method should be kept simple. Only the following should be considered active hyperparameters:
 
 1. `LAMBDA_NC`
-2. `STAGE2_EPOCHS`
-3. `NEIGHBOR_K`
+2. `LAMBDA_NC_WARMUP_EPOCHS`
+3. `STAGE2_EPOCHS`
+4. `NEIGHBOR_K`
 
 For the official project runs, fix them globally:
 
 ```text
-LAMBDA_NC = 1.0
+LAMBDA_NC_MAX = 1.0
+LAMBDA_NC_WARMUP_EPOCHS = 1
 STAGE2_EPOCHS = 5 for few-shot
 NEIGHBOR_K = 1, fallback to 5 only if too few mutual top-1 pairs
 PAIR_BATCH_SIZE = 8 for Modal budget mode, reduce to 4 only if T4 runs out of memory
 ```
+
+Use a linear Stage 2 consistency-weight warmup:
+
+```text
+lambda_nc(epoch_progress) = LAMBDA_NC_MAX * min(1.0, epoch_progress / LAMBDA_NC_WARMUP_EPOCHS)
+```
+
+where `epoch_progress` is measured from the start of Stage 2 in epochs. This is a fixed stability rule, not a sweep. It keeps the PromptSRC supervised/self-regularized anchor dominant at the start of refinement, then turns on the neighborhood consistency loss over the first epoch.
 
 Do not add entropy minimization, pseudo-labeling, EMA teacher, relation preservation, class-balance loss, or graph weights to the main method.
 
@@ -1274,6 +1285,8 @@ OPTIM.LR_SCHEDULER = "cosine"
 WARMUP_EPOCH = 0 or 1
 ```
 
+Use a separate linear warmup for `lambda_nc` from `0` to `1.0` over the first Stage 2 epoch. This does not change the LR schedule.
+
 Keep all model/prompt hyperparameters identical to Stage 1.
 
 ### 11.4 Pair loader
@@ -1358,7 +1371,8 @@ def forward_backward(self, batch):
     p_j = F.softmax(logits_j, dim=-1)
     loss_nc = js_divergence(p_i, p_j)
 
-    loss = loss_promptsrc + config.lambda_nc * loss_nc
+    lambda_nc = config.lambda_nc_max * min(1.0, epoch_progress / config.lambda_nc_warmup_epochs)
+    loss = loss_promptsrc + lambda_nc * loss_nc
 
     optim.zero_grad()
     loss.backward()
@@ -1499,7 +1513,8 @@ TRAINER:
     NEIGHBOR_K: 1
     FALLBACK_K: 5
     MIN_PAIRS_FRACTION: 0.25
-    LAMBDA_NC: 1.0
+    LAMBDA_NC_MAX: 1.0
+    LAMBDA_NC_WARMUP_EPOCHS: 1
     STAGE2_EPOCHS: 5
     STAGE2_LR: 0.00025
     PAIR_BATCH_SIZE: 8
@@ -1738,7 +1753,9 @@ Stage 1 and Stage 2 should log one JSON object at a fixed interval, for example 
   "loss_scl_image": 0.222,
   "loss_scl_logits": 0.033,
   "loss_nc": 0.041,
-  "lambda_nc": 1.0,
+  "lambda_nc": 0.74,
+  "lambda_nc_max": 1.0,
+  "lambda_nc_warmup_epochs": 1,
   "batch_size": 4,
   "pair_batch_size": 8,
   "grad_norm_prompt": 0.87,
@@ -1911,11 +1928,12 @@ Symptoms:
 
 Actions, in order:
 
-1. Reduce `LAMBDA_NC` from 1.0 to 0.1.
-2. Reduce Stage 2 LR from 2.5e-4 to 1e-4.
-3. Use deterministic transforms for pair images.
-4. Reduce pair batch size if memory issue, not for stability.
-5. Do not add new losses.
+1. Confirm the one-epoch `lambda_nc` warmup is active.
+2. Reduce `LAMBDA_NC_MAX` from 1.0 to 0.1.
+3. Reduce Stage 2 LR from 2.5e-4 to 1e-4.
+4. Use deterministic transforms for pair images.
+5. Reduce pair batch size if memory issue, not for stability.
+6. Do not add new losses.
 
 ### 18.2 If too few mutual top-1 pairs
 

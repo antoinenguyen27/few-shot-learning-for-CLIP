@@ -563,7 +563,7 @@ Mitigation:
 
 - Keep \(L_{\text{PromptSRC}}\) active during Stage 2.
 - Use a short Stage 2.
-- Use a conservative \(\lambda_{\text{NN}}\).
+- Use a conservative \(\lambda_{\text{NN}}\) with a fixed one-epoch linear warmup from 0 to the maximum value.
 - Do not use entropy minimization or pseudo-labeling in the core method.
 
 ### 12.3 Confounded comparison from extra training
