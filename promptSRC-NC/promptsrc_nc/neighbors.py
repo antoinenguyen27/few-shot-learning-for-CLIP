@@ -252,12 +252,20 @@ def validate_neighbor_artifacts(
     validate_neighbor_metadata(metadata, config, split)
     if metadata.get("feature_source") != "frozen_unprompted_openclip_before_promptsrc":
         raise ValueError(f"Neighbor artifact {pair_dir} has invalid feature_source={metadata.get('feature_source')!r}")
-    if int(metadata.get("neighbor_k_requested", -1)) != int(config.neighbor_k):
-        raise ValueError(f"Neighbor artifact {pair_dir} neighbor_k_requested does not match config")
+    neighbor_k_requested = int(metadata.get("neighbor_k_requested", -1))
     neighbor_k_used = int(metadata.get("neighbor_k_used", -1))
+    fallback_used = bool(metadata.get("fallback_used"))
+    legacy_top1_resolved_to_primary = (
+        neighbor_k_requested == 1
+        and neighbor_k_used == int(config.neighbor_k)
+        and int(config.neighbor_k) == int(config.fallback_k) == 5
+        and fallback_used
+    )
+    if neighbor_k_requested != int(config.neighbor_k) and not legacy_top1_resolved_to_primary:
+        raise ValueError(f"Neighbor artifact {pair_dir} neighbor_k_requested does not match config")
     if neighbor_k_used not in {int(config.neighbor_k), int(config.fallback_k)}:
         raise ValueError(f"Neighbor artifact {pair_dir} neighbor_k_used must be neighbor_k or fallback_k")
-    if bool(metadata.get("fallback_used")) != (neighbor_k_used != int(config.neighbor_k)):
+    if fallback_used != (neighbor_k_used != int(config.neighbor_k)) and not legacy_top1_resolved_to_primary:
         raise ValueError(f"Neighbor artifact {pair_dir} fallback_used does not match neighbor_k_used")
     items = []
     with (pair_dir / "unlabeled_items.jsonl").open("r", encoding="utf-8") as handle:
@@ -490,7 +498,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int, default=100)
     parser.add_argument("--num-workers", type=int, default=8)
-    parser.add_argument("--neighbor-k", type=int, default=1)
+    parser.add_argument("--neighbor-k", type=int, default=5)
     parser.add_argument("--fallback-k", type=int, default=5)
     parser.add_argument("--min-pairs-fraction", type=float, default=0.25)
     parser.add_argument("--max-unlabeled-images", type=int, default=None)

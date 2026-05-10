@@ -1,0 +1,7 @@
+dataset,checkpoint_trained_as,diagnostic_graph,n,edge_prediction_disagreement_pct,mean_js_on_real_neighbor_edges,mean_entropy,mean_confidence_pct
+EuroSAT,PromptSRC,fixed real frozen-CLIP neighbor edges,3,10.368675241867702,0.04052589709560076,0.6149135629336039,81.85286124547324
+EuroSAT,PromptSRC-NC (real neighbors),fixed real frozen-CLIP neighbor edges,3,9.970202048619587,0.039320231725772224,0.6118725736935934,82.03665614128113
+EuroSAT,PromptSRC-NC (randomized neighbors),fixed real frozen-CLIP neighbor edges,3,10.97930868466695,0.038630989690621696,0.799006998538971,76.02736751238504
+Flowers102,PromptSRC,fixed real frozen-CLIP neighbor edges,1,7.272094488143921,0.04975739121437073,0.4148426055908203,89.18537497520447
+Flowers102,PromptSRC-NC (real neighbors),fixed real frozen-CLIP neighbor edges,1,5.706332623958588,0.04356757551431656,0.370851069688797,90.43639302253723
+Flowers102,PromptSRC-NC (randomized neighbors),fixed real frozen-CLIP neighbor edges,1,7.411273568868637,0.050641074776649475,0.4402622878551483,88.58414888381958

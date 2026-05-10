@@ -253,6 +253,29 @@ def test_neighbor_validation_rejects_stale_openclip_model_name(tmp_path: Path) -
         neighbors_module.validate_neighbor_artifacts(pair_dir, _config(), _split())
 
 
+def test_neighbor_validation_accepts_legacy_top1_request_resolved_to_top5(tmp_path: Path) -> None:
+    pair_dir = tmp_path / "neighbors"
+    pair_dir.mkdir()
+    _write_neighbor_artifacts(
+        pair_dir,
+        _config(),
+        _split(),
+        [
+            {"uid": "unlab-a", "impath": "/tmp/a.jpg", "label": 0, "classname": "a"},
+            {"uid": "unlab-b", "impath": "/tmp/b.jpg", "label": 1, "classname": "b"},
+        ],
+        real_pairs=torch.tensor([[0, 1]], dtype=torch.long),
+        shuffled_pairs=torch.tensor([[0, 1]], dtype=torch.long),
+        metadata_overrides={
+            "neighbor_k_requested": 1,
+            "neighbor_k_used": 5,
+            "fallback_used": True,
+        },
+    )
+
+    neighbors_module.validate_neighbor_artifacts(pair_dir, _config(), _split())
+
+
 def test_neighbor_build_writes_effective_openclip_model_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     split = _split()
     items = [

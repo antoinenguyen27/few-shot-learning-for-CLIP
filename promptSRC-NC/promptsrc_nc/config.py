@@ -130,7 +130,7 @@ class PromptSRCNCConfig:
     gpa_mean: float = 45.0
     gpa_std: float = 5.0
     precision: str = "fp32"
-    neighbor_k: int = 1
+    neighbor_k: int = 5
     fallback_k: int = 5
     min_pairs_fraction: float = 0.25
     lambda_nc_max: float = 1.0

@@ -1,0 +1,28 @@
+{
+  "rows": [
+    {
+      "dataset": "eurosat",
+      "num_promptsrc": 3,
+      "num_real": 3,
+      "num_shuffled": 3,
+      "promptsrc_mean": 0.9069135802469136,
+      "promptsrc_nc_real_mean": 0.9112345679012346,
+      "promptsrc_nc_real_std": 0.003973698009736101,
+      "promptsrc_nc_shuffled_mean": 0.8979835390946502,
+      "promptsrc_nc_shuffled_std": 0.006348528607109205,
+      "promptsrc_std": 0.0045074410527231315,
+      "real_minus_promptsrc": 0.004320987654321022,
+      "real_minus_shuffled": 0.01325102880658439,
+      "shots": 16
+    },
+    {
+      "dataset": "Average",
+      "promptsrc_mean": 0.9069135802469136,
+      "promptsrc_nc_real_mean": 0.9112345679012346,
+      "promptsrc_nc_shuffled_mean": 0.8979835390946502,
+      "real_minus_promptsrc": 0.004320987654321022,
+      "real_minus_shuffled": 0.01325102880658439,
+      "shots": 16
+    }
+  ]
+}

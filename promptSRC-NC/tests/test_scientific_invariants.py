@@ -71,8 +71,8 @@ def _neighbor_dir(tmp_path: Path, pairs: torch.Tensor, *, include_features: bool
         "unlabeled_ids_hash": ordered_ids_hash(split.unlabeled_ids),
         "unlabeled_paths_hash": ordered_ids_hash([f"/current/{uid}.jpg" for uid in split.unlabeled_ids]),
         "split_hash": split_hash(split),
-        "neighbor_k_requested": 1,
-        "neighbor_k_used": 1,
+        "neighbor_k_requested": 5,
+        "neighbor_k_used": 5,
         "fallback_used": False,
         "num_real_pairs": int(pairs.shape[0]),
         "num_shuffled_pairs": int(pairs.shape[0]),
@@ -107,7 +107,7 @@ def _neighbor_dir(tmp_path: Path, pairs: torch.Tensor, *, include_features: bool
             },
             pair_dir / "features.pt",
         )
-    torch.save({"pairs": pairs, "neighbor_k": 1, "mutual": True}, pair_dir / "real_pairs.pt")
+    torch.save({"pairs": pairs, "neighbor_k": 5, "mutual": True}, pair_dir / "real_pairs.pt")
     torch.save({"pairs": pairs.clone(), "source": "degree_preserving_edge_swap"}, pair_dir / "shuffled_pairs.pt")
     return pair_dir
 

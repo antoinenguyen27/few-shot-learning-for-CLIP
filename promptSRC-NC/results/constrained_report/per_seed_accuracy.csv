@@ -1,0 +1,13 @@
+dataset,seed,method,test_top1_pct,test_macro_pct,val_top1_pct,val_macro_pct,checkpoint_role,run_id
+EuroSAT,1,PromptSRC,90.5432098765432,90.29222222222222,85.0,85.0,stage1_gpa,promptsrc-nc-main-20260510-192529
+EuroSAT,1,PromptSRC-NC (real neighbors),91.0,90.74333333333335,87.5,87.5,stage2_real_final,promptsrc-nc-main-20260510-192529
+EuroSAT,1,PromptSRC-NC (randomized neighbors),89.45679012345678,89.18555555555555,85.0,85.0,stage2_shuffled_final,promptsrc-nc-main-20260510-192529
+EuroSAT,2,PromptSRC,90.33333333333333,89.96555555555557,92.5,92.5,stage1_gpa,promptsrc-nc-main-20260510-192529
+EuroSAT,2,PromptSRC-NC (real neighbors),90.80246913580247,90.40555555555555,87.5,87.5,stage2_real_final,promptsrc-nc-main-20260510-192529
+EuroSAT,2,PromptSRC-NC (randomized neighbors),89.4074074074074,88.99333333333333,92.5,92.5,stage2_shuffled_final,promptsrc-nc-main-20260510-192529
+EuroSAT,3,PromptSRC,91.19753086419753,90.8377777777778,92.5,92.5,stage1_gpa,promptsrc-nc-main-20260510-192529
+EuroSAT,3,PromptSRC-NC (real neighbors),91.5679012345679,91.19222222222221,92.5,92.5,stage2_real_final,promptsrc-nc-main-20260510-192529
+EuroSAT,3,PromptSRC-NC (randomized neighbors),90.53086419753087,90.04222222222224,90.0,90.0,stage2_shuffled_final,promptsrc-nc-main-20260510-192529
+Flowers102,1,PromptSRC,95.3714981729598,95.26779481244564,95.58823529411765,95.58823529411765,stage1_gpa,promptsrc-nc-main-20260510-192533
+Flowers102,1,PromptSRC-NC (real neighbors),96.02111246447423,95.69939872119399,96.07843137254902,96.07843137254902,stage2_real_final,promptsrc-nc-main-20260510-192533
+Flowers102,1,PromptSRC-NC (randomized neighbors),95.3714981729598,95.23123430839287,95.58823529411765,95.58823529411765,stage2_shuffled_final,promptsrc-nc-main-20260510-192533

@@ -671,9 +671,9 @@ Use this only if running the secondary base-to-novel benchmark.
 Add standalone config fields, for example in a dataclass or YAML file:
 
 ```python
-neighbor_k = 1
+neighbor_k = 5
 min_pairs_fraction = 0.25
-fallback_k = 5
+fallback_k = 5  # legacy compatibility only; final protocol should already use 5
 lambda_nc_max = 1.0
 lambda_nc_warmup_epochs = 1
 stage2_epochs = 5
@@ -702,9 +702,13 @@ For the official project runs, fix them globally:
 LAMBDA_NC_MAX = 1.0
 LAMBDA_NC_WARMUP_EPOCHS = 1
 STAGE2_EPOCHS = 5 for few-shot
-NEIGHBOR_K = 1, fallback to 5 only if too few mutual top-1 pairs
+NEIGHBOR_K = 5 reciprocal mutual neighbors
 PAIR_BATCH_SIZE = 8 for Modal budget mode, reduce to 4 only if T4 runs out of memory
 ```
+
+`NEIGHBOR_K = 5` is the primary intended implementation. It is not a dataset-specific tuning choice. It is fixed globally because reciprocal top-5 balances three constraints: preserve local frozen-CLIP geometry, reject one-way hub edges through mutuality, and maintain enough connected unlabeled examples for Stage 2 to learn from.
+
+The current codebase may still expose a legacy `neighbor_k = 1, fallback_k = 5` path. That path exists only for backward compatibility and ablation/debugging. It should not be used to define the final protocol. When analyzing artifacts, treat `neighbor_k_used` as authoritative; final PromptSRC-NC runs should be reported as mutual top-5 whenever `neighbor_k_used = 5`, even if a legacy artifact also records `neighbor_k_requested = 1`.
 
 Use a linear Stage 2 consistency-weight warmup:
 
@@ -951,7 +955,7 @@ uv run python -m promptsrc_nc.neighbors \
   --seed 1 \
   --shots 16 \
   --backbone ViT-B-16 \
-  --neighbor-k 1 \
+  --neighbor-k 5 \
   --fallback-k 5 \
   --min-pairs-fraction 0.25
 ```
@@ -1022,9 +1026,9 @@ For ViT-B/16 CLIP, output feature dimension is 512.
   "clip_backbone": "ViT-B/16",
   "feature_source": "frozen_unprompted_clip_before_promptsrc",
   "num_unlabeled": 7342,
-  "neighbor_k_requested": 1,
-  "neighbor_k_used": 1,
-  "num_real_pairs": 2801,
+  "neighbor_k_requested": 5,
+  "neighbor_k_used": 5,
+  "num_real_pairs": 12706,
   "mean_real_cosine": 0.87,
   "mean_shuffled_cosine": 0.43
 }
@@ -1089,25 +1093,33 @@ i \in \text{kNN}(j).
 
 Store undirected pairs with `i < j`.
 
-Default:
+Primary final protocol:
+
+```text
+neighbor_k = 5
+```
+
+This value is chosen up front and fixed globally. Mutual top-5 is more appropriate than mutual top-1 for PromptSRC-NC because Stage 2 needs both precision and coverage:
+
+1. Mutuality rejects one-way neighbor links and hub artifacts.
+2. Top-5 keeps the graph local while giving each image more chances to form a reciprocal edge.
+3. The resulting graph usually covers enough unlabeled images to make the NC loss a meaningful training signal.
+4. It avoids adding extra graph hyperparameters such as edge weights, confidence thresholds, refresh schedules, or Laplacian normalization.
+
+Legacy compatibility:
 
 ```text
 neighbor_k = 1
+fallback_k = 5
 ```
 
-If:
+Some code paths still build mutual top-1 first and rebuild with mutual top-5 when:
 
 ```text
 num_pairs < MIN_PAIRS_FRACTION * num_unlabeled
 ```
 
-then rebuild with:
-
-```text
-neighbor_k = FALLBACK_K = 5
-```
-
-This fallback is not a tunable experimental knob. It is an implementation safety rule for sparse mutual top-1 graphs.
+This should be treated as a legacy safety path or a secondary ablation, not as the final method definition. For final reports, use the metadata field `neighbor_k_used`; if it is 5, the result is a mutual top-5 result. Do not claim that such a run used strict mutual top-1.
 
 ### 9.6 Shuffled-neighbor control
 
@@ -1817,7 +1829,7 @@ Diagnostics should write:
   "seed": 1,
   "num_unlabeled": 5008,
   "num_real_pairs": 2801,
-  "neighbor_k": 1,
+  "neighbor_k": 5,
   "edge_disagreement": 0.21,
   "mean_js": 0.034,
   "mean_entropy": 1.74,
@@ -1955,9 +1967,9 @@ Actions, in order:
 5. Reduce pair batch size if memory issue, not for stability.
 6. Do not add new losses.
 
-### 18.2 If too few mutual top-1 pairs
+### 18.2 If a run records `neighbor_k_requested = 1`
 
-Use mutual top-5 fallback. Record this in metadata.
+Interpret this as the legacy construction path. The final protocol is determined by `neighbor_k_used`. If `neighbor_k_used = 5`, report the run as mutual top-5. If `neighbor_k_used = 1`, mark it as a secondary top-1 ablation and do not mix it with the primary PromptSRC-NC results.
 
 ### 18.3 If shuffled graph outperforms real graph
 
@@ -2000,7 +2012,7 @@ This is a scientifically plausible outcome. The conclusion should be dataset-con
 - [ ] Build deterministic unlabeled loader.
 - [ ] Extract frozen CLIP image features.
 - [ ] Save normalized features.
-- [ ] Build real mutual-neighbor pairs.
+- [ ] Build real reciprocal mutual top-5 neighbor pairs.
 - [ ] Build degree-preserving shuffled pairs.
 - [ ] Save metadata and sanity stats.
 

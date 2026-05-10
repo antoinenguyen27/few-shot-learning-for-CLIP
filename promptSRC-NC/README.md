@@ -161,7 +161,7 @@ Outputs:
   metadata.json
 ```
 
-Real pairs use mutual top-1 neighbors, with fixed mutual top-5 fallback only if too few pairs are produced. Shuffled pairs use degree-preserving double-edge swaps.
+Real pairs use reciprocal mutual top-5 frozen-CLIP neighbors for the final PromptSRC-NC protocol. Some code paths still expose a legacy mutual top-1 request plus top-5 fallback for backward compatibility and ablations; final reporting should use the recorded `neighbor_k_used` field and should treat `neighbor_k_used = 5` as a mutual top-5 run. Shuffled pairs use degree-preserving double-edge swaps.
 Neighbor metadata records the full split hash, effective unlabeled ID hash, requested OpenCLIP backbone, effective OpenCLIP model name, pretrained source, and shuffled-control audit fields. Stage 2, diagnostics, and stage-2 profiling fail closed if these artifacts do not match the active config and split.
 
 ## Stage 1: PromptSRC Baseline
@@ -207,8 +207,8 @@ sgd_momentum = 0.9
 weight_decay = 0.0005
 lambda_nc_max = 1.0
 lambda_nc_warmup_epochs = 1
-neighbor_k = 1
-fallback_k = 5
+neighbor_k = 5
+fallback_k = 5  # legacy compatibility only
 pair_batch_size = 8
 ```
 

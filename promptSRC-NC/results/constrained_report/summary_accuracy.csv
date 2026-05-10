@@ -1,0 +1,13 @@
+dataset,method,top1_mean_pct,top1_std_pct,macro_mean_pct,macro_std_pct,n,run_id,source
+EuroSAT,Zero-shot CLIP,47.5,,,,paper,,"2SFS CVPR 2025 Table 2, ViT-B/16 Zero-Shot row (all-to-all, k=16 shots per class)"
+EuroSAT,PromptSRC,90.69135802469135,0.4507441052723131,90.36518518518518,0.4406649483539886,3,promptsrc-nc-main-20260510-192529,local PromptSRC-NC run
+EuroSAT,PromptSRC-NC (real neighbors),91.12345679012344,0.39736980097361013,90.78037037037036,0.3946389713338929,3,promptsrc-nc-main-20260510-192529,local PromptSRC-NC run
+EuroSAT,PromptSRC-NC (randomized neighbors),89.79835390946502,0.6348528607109205,89.40703703703704,0.5584196542816866,3,promptsrc-nc-main-20260510-192529,local PromptSRC-NC run
+Flowers102,Zero-shot CLIP,71.4,,,,paper,,"2SFS CVPR 2025 Table 2, ViT-B/16 Zero-Shot row (all-to-all, k=16 shots per class)"
+Flowers102,PromptSRC,95.3714981729598,,95.26779481244564,,1,promptsrc-nc-main-20260510-192533,local PromptSRC-NC run
+Flowers102,PromptSRC-NC (real neighbors),96.02111246447423,,95.69939872119399,,1,promptsrc-nc-main-20260510-192533,local PromptSRC-NC run
+Flowers102,PromptSRC-NC (randomized neighbors),95.3714981729598,,95.23123430839287,,1,promptsrc-nc-main-20260510-192533,local PromptSRC-NC run
+Stanford Cars,Zero-shot CLIP,65.3,,,,paper,,"2SFS CVPR 2025 Table 2, ViT-B/16 Zero-Shot row (all-to-all, k=16 shots per class)"
+Stanford Cars,PromptSRC,,,,,0,,not completed / not available
+Stanford Cars,PromptSRC-NC (real neighbors),,,,,0,,not completed / not available
+Stanford Cars,PromptSRC-NC (randomized neighbors),,,,,0,,not completed / not available
