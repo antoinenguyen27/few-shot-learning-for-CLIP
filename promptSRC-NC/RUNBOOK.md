@@ -345,9 +345,254 @@ Aggregation: last
 
 The run artifacts are written under dataset/shot/seed/backbone/mode-specific paths. Aggregation scans per-artifact JSON files, so it does not rely on concurrent appends to shared JSONL logs.
 
-Start with bounded concurrency. A practical pattern is one dataset at a time, with its three seeds parallelized. Increase only if Modal quota and budget allow it.
+Start with bounded concurrency. The recommended practical pattern is one continuous foreground command per dataset, run in separate terminals if you want dataset-level parallelism. Each dataset command below handles dependencies in the correct order, so you do not need to manually start the next stage when one finishes.
 
-## 10. Wave 1: Stage 0 and Stage 1
+## 10. Recommended Dataset-Level Commands
+
+Use these after `prepare_data`, `prepare_weights`, and smoke have succeeded. Open one terminal per dataset if you want to run datasets concurrently. Because these commands do not use `--detach`, their live logs stream in the same terminal. Use `modal app logs promptsrc-nc -f --timestamps` only for a detached run, a second monitor, or after the launching terminal is gone.
+
+EuroSAT:
+
+```bash
+DATASET=eurosat
+for SEED in "${SEEDS[@]}"; do
+  echo "=== $DATASET seed=$SEED Stage 0: neighbors ==="
+  uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+    --action build_neighbors \
+    --run-id "$RUN_ID" \
+    --dataset "$DATASET" \
+    --shots "$SHOTS" \
+    --seed "$SEED" \
+    --backbone "$BACKBONE" \
+    --pretrained "$PRETRAINED" \
+    --gpu "$GPU"
+
+  echo "=== $DATASET seed=$SEED Stage 1: PromptSRC ==="
+  uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+    --action train_stage1 \
+    --run-id "$RUN_ID" \
+    --dataset "$DATASET" \
+    --shots "$SHOTS" \
+    --seed "$SEED" \
+    --backbone "$BACKBONE" \
+    --pretrained "$PRETRAINED" \
+    --gpu "$GPU"
+
+  for PAIR_MODE in real shuffled; do
+    echo "=== $DATASET seed=$SEED Stage 2: $PAIR_MODE ==="
+    uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+      --action train_stage2 \
+      --run-id "$RUN_ID" \
+      --dataset "$DATASET" \
+      --shots "$SHOTS" \
+      --seed "$SEED" \
+      --backbone "$BACKBONE" \
+      --pretrained "$PRETRAINED" \
+      --gpu "$GPU" \
+      --pair-mode "$PAIR_MODE" \
+      --pair-batch-size "$PAIR_BATCH_SIZE"
+  done
+
+  for SPLIT in val test; do
+    for CKPT in stage1 stage2-real stage2-shuffled; do
+      echo "=== $DATASET seed=$SEED eval $CKPT $SPLIT ==="
+      uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+        --action evaluate \
+        --run-id "$RUN_ID" \
+        --dataset "$DATASET" \
+        --shots "$SHOTS" \
+        --seed "$SEED" \
+        --backbone "$BACKBONE" \
+        --pretrained "$PRETRAINED" \
+        --gpu "$GPU" \
+        --checkpoint-ref "$CKPT" \
+        --split "$SPLIT"
+    done
+  done
+
+  for CKPT in stage1 stage2-real stage2-shuffled; do
+    echo "=== $DATASET seed=$SEED diagnostics $CKPT ==="
+    uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+      --action diagnostics \
+      --run-id "$RUN_ID" \
+      --dataset "$DATASET" \
+      --shots "$SHOTS" \
+      --seed "$SEED" \
+      --backbone "$BACKBONE" \
+      --pretrained "$PRETRAINED" \
+      --gpu "$GPU" \
+      --checkpoint-ref "$CKPT"
+  done
+done
+```
+
+Oxford Flowers:
+
+```bash
+DATASET=oxford_flowers
+for SEED in "${SEEDS[@]}"; do
+  echo "=== $DATASET seed=$SEED Stage 0: neighbors ==="
+  uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+    --action build_neighbors \
+    --run-id "$RUN_ID" \
+    --dataset "$DATASET" \
+    --shots "$SHOTS" \
+    --seed "$SEED" \
+    --backbone "$BACKBONE" \
+    --pretrained "$PRETRAINED" \
+    --gpu "$GPU"
+
+  echo "=== $DATASET seed=$SEED Stage 1: PromptSRC ==="
+  uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+    --action train_stage1 \
+    --run-id "$RUN_ID" \
+    --dataset "$DATASET" \
+    --shots "$SHOTS" \
+    --seed "$SEED" \
+    --backbone "$BACKBONE" \
+    --pretrained "$PRETRAINED" \
+    --gpu "$GPU"
+
+  for PAIR_MODE in real shuffled; do
+    echo "=== $DATASET seed=$SEED Stage 2: $PAIR_MODE ==="
+    uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+      --action train_stage2 \
+      --run-id "$RUN_ID" \
+      --dataset "$DATASET" \
+      --shots "$SHOTS" \
+      --seed "$SEED" \
+      --backbone "$BACKBONE" \
+      --pretrained "$PRETRAINED" \
+      --gpu "$GPU" \
+      --pair-mode "$PAIR_MODE" \
+      --pair-batch-size "$PAIR_BATCH_SIZE"
+  done
+
+  for SPLIT in val test; do
+    for CKPT in stage1 stage2-real stage2-shuffled; do
+      echo "=== $DATASET seed=$SEED eval $CKPT $SPLIT ==="
+      uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+        --action evaluate \
+        --run-id "$RUN_ID" \
+        --dataset "$DATASET" \
+        --shots "$SHOTS" \
+        --seed "$SEED" \
+        --backbone "$BACKBONE" \
+        --pretrained "$PRETRAINED" \
+        --gpu "$GPU" \
+        --checkpoint-ref "$CKPT" \
+        --split "$SPLIT"
+    done
+  done
+
+  for CKPT in stage1 stage2-real stage2-shuffled; do
+    echo "=== $DATASET seed=$SEED diagnostics $CKPT ==="
+    uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+      --action diagnostics \
+      --run-id "$RUN_ID" \
+      --dataset "$DATASET" \
+      --shots "$SHOTS" \
+      --seed "$SEED" \
+      --backbone "$BACKBONE" \
+      --pretrained "$PRETRAINED" \
+      --gpu "$GPU" \
+      --checkpoint-ref "$CKPT"
+  done
+done
+```
+
+Stanford Cars:
+
+```bash
+DATASET=stanford_cars
+for SEED in "${SEEDS[@]}"; do
+  echo "=== $DATASET seed=$SEED Stage 0: neighbors ==="
+  uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+    --action build_neighbors \
+    --run-id "$RUN_ID" \
+    --dataset "$DATASET" \
+    --shots "$SHOTS" \
+    --seed "$SEED" \
+    --backbone "$BACKBONE" \
+    --pretrained "$PRETRAINED" \
+    --gpu "$GPU"
+
+  echo "=== $DATASET seed=$SEED Stage 1: PromptSRC ==="
+  uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+    --action train_stage1 \
+    --run-id "$RUN_ID" \
+    --dataset "$DATASET" \
+    --shots "$SHOTS" \
+    --seed "$SEED" \
+    --backbone "$BACKBONE" \
+    --pretrained "$PRETRAINED" \
+    --gpu "$GPU"
+
+  for PAIR_MODE in real shuffled; do
+    echo "=== $DATASET seed=$SEED Stage 2: $PAIR_MODE ==="
+    uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+      --action train_stage2 \
+      --run-id "$RUN_ID" \
+      --dataset "$DATASET" \
+      --shots "$SHOTS" \
+      --seed "$SEED" \
+      --backbone "$BACKBONE" \
+      --pretrained "$PRETRAINED" \
+      --gpu "$GPU" \
+      --pair-mode "$PAIR_MODE" \
+      --pair-batch-size "$PAIR_BATCH_SIZE"
+  done
+
+  for SPLIT in val test; do
+    for CKPT in stage1 stage2-real stage2-shuffled; do
+      echo "=== $DATASET seed=$SEED eval $CKPT $SPLIT ==="
+      uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+        --action evaluate \
+        --run-id "$RUN_ID" \
+        --dataset "$DATASET" \
+        --shots "$SHOTS" \
+        --seed "$SEED" \
+        --backbone "$BACKBONE" \
+        --pretrained "$PRETRAINED" \
+        --gpu "$GPU" \
+        --checkpoint-ref "$CKPT" \
+        --split "$SPLIT"
+    done
+  done
+
+  for CKPT in stage1 stage2-real stage2-shuffled; do
+    echo "=== $DATASET seed=$SEED diagnostics $CKPT ==="
+    uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+      --action diagnostics \
+      --run-id "$RUN_ID" \
+      --dataset "$DATASET" \
+      --shots "$SHOTS" \
+      --seed "$SEED" \
+      --backbone "$BACKBONE" \
+      --pretrained "$PRETRAINED" \
+      --gpu "$GPU" \
+      --checkpoint-ref "$CKPT"
+  done
+done
+```
+
+After all dataset-level commands finish, run aggregation once:
+
+```bash
+uv run --project "$PROJECT" modal run --timestamps "$PROJECT/modal_app.py" \
+  --action aggregate_results \
+  --run-id "$RUN_ID"
+```
+
+## 11. Optional Detached Wave Commands
+
+The commands below are optional. Use them only if you want to launch stages as detached jobs and monitor separately with:
+
+```bash
+uv run --project "$PROJECT" modal app logs promptsrc-nc -f --timestamps
+```
+
+### Wave 1: Stage 0 and Stage 1
 
 For EuroSAT:
 
@@ -413,7 +658,7 @@ uv run --project "$PROJECT" modal volume ls promptsrc-nc-runs "$RUN_ID/neighbors
 uv run --project "$PROJECT" modal volume ls promptsrc-nc-runs "$RUN_ID/stage1"
 ```
 
-## 11. Wave 2: Stage 2 Real and Shuffled
+### Wave 2: Stage 2 Real and Shuffled
 
 Run only after the matching Stage 0 neighbor artifacts and Stage 1 GPA checkpoint exist.
 
@@ -466,7 +711,7 @@ Stage 2 is done when these exist:
 /vol/runs/{RUN_ID}/stage2/{dataset}/shot16/seed{seed}/ViT-B-16/shuffled/checkpoints/final.pt
 ```
 
-## 12. Wave 3: Evaluation and Diagnostics
+### Wave 3: Evaluation and Diagnostics
 
 Run after all target checkpoints for the dataset/seed exist.
 
@@ -524,7 +769,7 @@ Expected output counts:
 27 diagnostics rows if diagnostics are run for all variants
 ```
 
-## 13. Wave 4: Aggregation
+## 12. Aggregation
 
 Aggregate after evaluation and diagnostics complete:
 
@@ -552,7 +797,7 @@ real_minus_shuffled > 0    real frozen-CLIP geometry beat shuffled control
 
 If shuffled outperforms real, report it. That weakens the frozen-CLIP geometry claim.
 
-## 14. Download Results
+## 13. Download Results
 
 Download summaries and logs:
 
@@ -578,7 +823,7 @@ promptSRC-NC/results/$RUN_ID/results/cost_profile_summary.csv
 promptSRC-NC/results/$RUN_ID/results/aggregate_warnings.json
 ```
 
-## 15. Validity Checklist
+## 14. Validity Checklist
 
 Before reporting:
 
@@ -610,7 +855,7 @@ uv run --project "$PROJECT" modal volume get promptsrc-nc-runs "$RUN_ID/results/
 uv run --project "$PROJECT" modal volume get promptsrc-nc-runs "$RUN_ID/results/aggregate_warnings.json" -
 ```
 
-## 16. Troubleshooting
+## 15. Troubleshooting
 
 ### HF warning or slow model load
 
@@ -725,7 +970,7 @@ neighbor_k
 fallback_k
 ```
 
-## 17. Scientific Guardrails
+## 16. Scientific Guardrails
 
 Keep these fixed unless the research proposal/spec is explicitly revised:
 
