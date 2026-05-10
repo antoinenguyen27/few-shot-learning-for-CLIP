@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="760" viewBox="0 0 1320 760">
+<rect x="0.0" y="0.0" width="1320.0" height="760.0" fill="#ffffff" stroke="none"/>
+<text x="54.0" y="46.0" font-family="Arial, sans-serif" font-size="28" text-anchor="start" fill="#1f2937" font-weight="700">Prediction disagreement on real-neighbor edges</text>
+<text x="54.0" y="78.0" font-family="Arial, sans-serif" font-size="16" text-anchor="start" fill="#4b5563" font-weight="400">Post-hoc diagnostic on the same frozen-CLIP real-neighbor graph for every checkpoint. Lower is smoother.</text>
+<line x1="430.0" y1="114.0" x2="430.0" y2="442.0" stroke="#e5e7eb" stroke-width="1.0"/>
+<text x="430.0" y="467.0" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#6b7280" font-weight="400">0</text>
+<line x1="556.7" y1="114.0" x2="556.7" y2="442.0" stroke="#e5e7eb" stroke-width="1.0"/>
+<text x="556.7" y="467.0" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#6b7280" font-weight="400">2</text>
+<line x1="683.3" y1="114.0" x2="683.3" y2="442.0" stroke="#e5e7eb" stroke-width="1.0"/>
+<text x="683.3" y="467.0" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#6b7280" font-weight="400">4</text>
+<line x1="810.0" y1="114.0" x2="810.0" y2="442.0" stroke="#e5e7eb" stroke-width="1.0"/>
+<text x="810.0" y="467.0" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#6b7280" font-weight="400">6</text>
+<line x1="936.7" y1="114.0" x2="936.7" y2="442.0" stroke="#e5e7eb" stroke-width="1.0"/>
+<text x="936.7" y="467.0" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#6b7280" font-weight="400">8</text>
+<line x1="1063.3" y1="114.0" x2="1063.3" y2="442.0" stroke="#e5e7eb" stroke-width="1.0"/>
+<text x="1063.3" y="467.0" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#6b7280" font-weight="400">10</text>
+<line x1="1190.0" y1="114.0" x2="1190.0" y2="442.0" stroke="#e5e7eb" stroke-width="1.0"/>
+<text x="1190.0" y="467.0" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#6b7280" font-weight="400">12</text>
+<line x1="430.0" y1="114.0" x2="430.0" y2="442.0" stroke="#9ca3af" stroke-width="1.2"/>
+<text x="810.0" y="497.0" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#374151" font-weight="700">Edge prediction disagreement (%)</text>
+<text x="54.0" y="155.0" font-family="Arial, sans-serif" font-size="18" text-anchor="start" fill="#1f2937" font-weight="700">EuroSAT</text>
+<text x="412.0" y="155.0" font-family="Arial, sans-serif" font-size="14" text-anchor="end" fill="#374151" font-weight="400">PromptSRC</text>
+<rect x="430.0" y="136.0" width="656.7" height="26.0" fill="#6b7280" stroke="none"/>
+<text x="1096.7" y="155.0" font-family="Arial, sans-serif" font-size="13" text-anchor="start" fill="#111827" font-weight="700">10.37</text>
+<text x="412.0" y="205.0" font-family="Arial, sans-serif" font-size="14" text-anchor="end" fill="#374151" font-weight="400">PromptSRC-NC (real neighbors)</text>
+<rect x="430.0" y="186.0" width="631.4" height="26.0" fill="#2563eb" stroke="none"/>
+<text x="1071.4" y="205.0" font-family="Arial, sans-serif" font-size="13" text-anchor="start" fill="#111827" font-weight="700">9.97</text>
+<text x="412.0" y="255.0" font-family="Arial, sans-serif" font-size="14" text-anchor="end" fill="#374151" font-weight="400">PromptSRC-NC (randomized neighbors)</text>
+<rect x="430.0" y="236.0" width="695.4" height="26.0" fill="#d97706" stroke="none"/>
+<text x="1135.4" y="255.0" font-family="Arial, sans-serif" font-size="13" text-anchor="start" fill="#111827" font-weight="700">10.98</text>
+<text x="54.0" y="305.0" font-family="Arial, sans-serif" font-size="18" text-anchor="start" fill="#1f2937" font-weight="700">Flowers102</text>
+<text x="412.0" y="305.0" font-family="Arial, sans-serif" font-size="14" text-anchor="end" fill="#374151" font-weight="400">PromptSRC</text>
+<rect x="430.0" y="286.0" width="460.6" height="26.0" fill="#6b7280" stroke="none"/>
+<text x="900.6" y="305.0" font-family="Arial, sans-serif" font-size="13" text-anchor="start" fill="#111827" font-weight="700">7.27</text>
+<text x="412.0" y="355.0" font-family="Arial, sans-serif" font-size="14" text-anchor="end" fill="#374151" font-weight="400">PromptSRC-NC (real neighbors)</text>
+<rect x="430.0" y="336.0" width="361.4" height="26.0" fill="#2563eb" stroke="none"/>
+<text x="801.4" y="355.0" font-family="Arial, sans-serif" font-size="13" text-anchor="start" fill="#111827" font-weight="700">5.71</text>
+<text x="412.0" y="405.0" font-family="Arial, sans-serif" font-size="14" text-anchor="end" fill="#374151" font-weight="400">PromptSRC-NC (randomized neighbors)</text>
+<rect x="430.0" y="386.0" width="469.4" height="26.0" fill="#d97706" stroke="none"/>
+<text x="909.4" y="405.0" font-family="Arial, sans-serif" font-size="13" text-anchor="start" fill="#111827" font-weight="700">7.41</text>
+</svg>

@@ -56,8 +56,10 @@ The official repository is based on Dassl.pytorch. For this project, treat Dassl
 Local development should use `uv`. Do not use conda for this project.
 
 ```bash
-uv sync
-uv run python -m compileall promptSRC-NC
+cd promptSRC-NC
+uv sync --extra dev
+uv run python -m compileall promptsrc_nc modal_app.py
+uv run pytest -q
 uv run modal --help
 ```
 
@@ -191,12 +193,12 @@ The project uses three datasets:
 
 The standalone implementation must provide its own data preprocessing code under `promptSRC-NC/`. It may reuse ideas from the archived `method_reproductions/docs/data.md`, but it should not depend on scripts outside `promptSRC-NC/` for cloud runs.
 
-Use these KaggleHub handles as the default source mirrors, matching the earlier reproduction scaffold:
+Use these default data sources:
 
 ```text
-EuroSAT:       apollo2506/eurosat-dataset
-Flowers102:    nunenuh/pytorch-challange-flower-dataset
-Stanford Cars: eduardo4jesus/stanford-cars-dataset
+Flowers102:    official Oxford VGG source, https://www.robots.ox.ac.uk/~vgg/data/flowers/102/
+EuroSAT:       KaggleHub mirror, apollo2506/eurosat-dataset
+Stanford Cars: KaggleHub mirror, eduardo4jesus/stanford-cars-dataset
 ```
 
 The `prepare_data` Modal function should download or verify raw sources, build normalized manifests, write deterministic split files, and emit a data-preparation log record for every dataset. It should be idempotent: if the Volume already contains matching source metadata and split files, it should verify and return without redownloading.
@@ -217,7 +219,18 @@ $DATA/oxford_flowers/
 |-- split_zhou_OxfordFlowers.json
 ```
 
-Kaggle mirror used by the reproduction scaffold:
+Official VGG fallback when the PromptSRC/Zhou split file is not present:
+
+```text
+$DATA/oxford_flowers/
+|-- cat_to_name.json
+|-- imagelabels.mat
+|-- jpg/
+```
+
+The implementation should use `split_zhou_OxfordFlowers.json` when available, otherwise use the official VGG labels to create the PromptSRC-compatible 50/20/30 train/validation/test source split. Do not use the official VGG `setid.mat` split for the primary PromptSRC-NC few-shot protocol because its training partition has only 10 images per class and cannot support 16-shot runs. A flat Kaggle challenge-style `dataset/test/*.jpg` folder is unlabeled and must not be used as the evaluation test split.
+
+Class-labeled Kaggle mirror layout, supported only if already provided manually:
 
 ```text
 dataset/
@@ -262,15 +275,17 @@ $DATA/stanford_cars/
 |-- split_zhou_StanfordCars.json
 ```
 
-Kaggle mirror:
+Kaggle mirror plus official labeled test annotations:
 
 ```text
-cars_train/**/*.jpg
-cars_test/**/*.jpg
-devkit/cars_meta.mat
-devkit/cars_train_annos.mat
+cars_train/**/*.jpg or cars_train/cars_train/*.jpg
+cars_test/**/*.jpg or cars_test/cars_test/*.jpg
+devkit/cars_meta.mat or car_devkit/devkit/cars_meta.mat
+devkit/cars_train_annos.mat or car_devkit/devkit/cars_train_annos.mat
 cars_test_annos_withlabels.mat
 ```
+
+Some Kaggle mirrors include only `cars_test_annos.mat`, whose annotations do not contain class labels. That file is not sufficient for evaluation; data preparation must download or verify `cars_test_annos_withlabels.mat` from the official Stanford Cars source, with a checksum-verified public mirror fallback if the Stanford host is temporarily unavailable.
 
 ### 3.2 Dataset split behavior in PromptSRC
 
@@ -576,6 +591,8 @@ INPUT:
 OPTIM:
   NAME: "sgd"
   LR: 0.0025
+  MOMENTUM: 0.9
+  WEIGHT_DECAY: 0.0005
   MAX_EPOCH: 50
   LR_SCHEDULER: "cosine"
   WARMUP_EPOCH: 1
@@ -617,8 +634,9 @@ For the standalone PyTorch/OpenCLIP implementation:
 
 - default backbone should remain `ViT-B/16` for the cleanest comparison;
 - keep labeled batch size at `4` unless a smoke or profile run shows it cannot fit;
-- use mixed precision on GPU;
+- use fp32 prompt optimization by default; AMP is allowed only as an explicitly validated performance variant because non-finite prompt gradients or skipped optimizer steps invalidate checkpoints;
 - keep image size and normalization equivalent to CLIP/OpenCLIP's pretrained preprocessing;
+- when `pretrained=openai`, resolve OpenCLIP ViT model names to the matching `*-quickgelu` variant and record that effective model name in provenance;
 - keep PromptSRC's prompt counts, prompt depths, loss weights, optimizer, LR, epoch count, and GPA settings unless a documented compatibility issue is found.
 - implement both textual and visual prompting behavior locally. Do not silently downgrade to text-only prompt tuning; if OpenCLIP internals require a wrapper for visual prompt tokens, build that wrapper inside `promptSRC-NC/` and document any unsupported PromptSRC component.
 
@@ -653,10 +671,11 @@ Use this only if running the secondary base-to-novel benchmark.
 Add standalone config fields, for example in a dataclass or YAML file:
 
 ```python
-neighbor_k = 1
+neighbor_k = 5
 min_pairs_fraction = 0.25
-fallback_k = 5
-lambda_nc = 1.0
+fallback_k = 5  # legacy compatibility only; final protocol should already use 5
+lambda_nc_max = 1.0
+lambda_nc_warmup_epochs = 1
 stage2_epochs = 5
 stage2_lr = 0.00025
 pair_batch_size = 8
@@ -673,17 +692,31 @@ Default values should not be tuned per dataset for the main experiment.
 The method should be kept simple. Only the following should be considered active hyperparameters:
 
 1. `LAMBDA_NC`
-2. `STAGE2_EPOCHS`
-3. `NEIGHBOR_K`
+2. `LAMBDA_NC_WARMUP_EPOCHS`
+3. `STAGE2_EPOCHS`
+4. `NEIGHBOR_K`
 
 For the official project runs, fix them globally:
 
 ```text
-LAMBDA_NC = 1.0
+LAMBDA_NC_MAX = 1.0
+LAMBDA_NC_WARMUP_EPOCHS = 1
 STAGE2_EPOCHS = 5 for few-shot
-NEIGHBOR_K = 1, fallback to 5 only if too few mutual top-1 pairs
+NEIGHBOR_K = 5 reciprocal mutual neighbors
 PAIR_BATCH_SIZE = 8 for Modal budget mode, reduce to 4 only if T4 runs out of memory
 ```
+
+`NEIGHBOR_K = 5` is the primary intended implementation. It is not a dataset-specific tuning choice. It is fixed globally because reciprocal top-5 balances three constraints: preserve local frozen-CLIP geometry, reject one-way hub edges through mutuality, and maintain enough connected unlabeled examples for Stage 2 to learn from.
+
+The current codebase may still expose a legacy `neighbor_k = 1, fallback_k = 5` path. That path exists only for backward compatibility and ablation/debugging. It should not be used to define the final protocol. When analyzing artifacts, treat `neighbor_k_used` as authoritative; final PromptSRC-NC runs should be reported as mutual top-5 whenever `neighbor_k_used = 5`, even if a legacy artifact also records `neighbor_k_requested = 1`.
+
+Use a linear Stage 2 consistency-weight warmup:
+
+```text
+lambda_nc(epoch_progress) = LAMBDA_NC_MAX * min(1.0, epoch_progress / LAMBDA_NC_WARMUP_EPOCHS)
+```
+
+where `epoch_progress` is measured from the start of Stage 2 in epochs. This is a fixed stability rule, not a sweep. It keeps the PromptSRC supervised/self-regularized anchor dominant at the start of refinement, then turns on the neighborhood consistency loss over the first epoch.
 
 Do not add entropy minimization, pseudo-labeling, EMA teacher, relation preservation, class-balance loss, or graph weights to the main method.
 
@@ -721,7 +754,7 @@ Minimum remote smoke test:
 5. build the OpenCLIP model and transforms;
 6. run one Stage 1 forward/backward/optimizer step;
 7. build a tiny neighbor subset from at most 256 unlabeled images;
-8. run one Stage 2 real-pair step and one shuffled-pair step;
+8. run one Stage 2 real-pair step and one shuffled-pair step with NC active;
 9. run one evaluation batch;
 10. write a smoke-test JSON artifact under `/vol/runs/{run_id}/smoke/`.
 
@@ -922,7 +955,7 @@ uv run python -m promptsrc_nc.neighbors \
   --seed 1 \
   --shots 16 \
   --backbone ViT-B-16 \
-  --neighbor-k 1 \
+  --neighbor-k 5 \
   --fallback-k 5 \
   --min-pairs-fraction 0.25
 ```
@@ -993,9 +1026,9 @@ For ViT-B/16 CLIP, output feature dimension is 512.
   "clip_backbone": "ViT-B/16",
   "feature_source": "frozen_unprompted_clip_before_promptsrc",
   "num_unlabeled": 7342,
-  "neighbor_k_requested": 1,
-  "neighbor_k_used": 1,
-  "num_real_pairs": 2801,
+  "neighbor_k_requested": 5,
+  "neighbor_k_used": 5,
+  "num_real_pairs": 12706,
   "mean_real_cosine": 0.87,
   "mean_shuffled_cosine": 0.43
 }
@@ -1060,25 +1093,33 @@ i \in \text{kNN}(j).
 
 Store undirected pairs with `i < j`.
 
-Default:
+Primary final protocol:
+
+```text
+neighbor_k = 5
+```
+
+This value is chosen up front and fixed globally. Mutual top-5 is more appropriate than mutual top-1 for PromptSRC-NC because Stage 2 needs both precision and coverage:
+
+1. Mutuality rejects one-way neighbor links and hub artifacts.
+2. Top-5 keeps the graph local while giving each image more chances to form a reciprocal edge.
+3. The resulting graph usually covers enough unlabeled images to make the NC loss a meaningful training signal.
+4. It avoids adding extra graph hyperparameters such as edge weights, confidence thresholds, refresh schedules, or Laplacian normalization.
+
+Legacy compatibility:
 
 ```text
 neighbor_k = 1
+fallback_k = 5
 ```
 
-If:
+Some code paths still build mutual top-1 first and rebuild with mutual top-5 when:
 
 ```text
 num_pairs < MIN_PAIRS_FRACTION * num_unlabeled
 ```
 
-then rebuild with:
-
-```text
-neighbor_k = FALLBACK_K = 5
-```
-
-This fallback is not a tunable experimental knob. It is an implementation safety rule for sparse mutual top-1 graphs.
+This should be treated as a legacy safety path or a secondary ablation, not as the final method definition. For final reports, use the metadata field `neighbor_k_used`; if it is 5, the result is a mutual top-5 result. Do not claim that such a run used strict mutual top-1.
 
 ### 9.6 Shuffled-neighbor control
 
@@ -1274,6 +1315,8 @@ OPTIM.LR_SCHEDULER = "cosine"
 WARMUP_EPOCH = 0 or 1
 ```
 
+Use a separate linear warmup for `lambda_nc` from `0` to `1.0` over the first Stage 2 epoch. This does not change the LR schedule.
+
 Keep all model/prompt hyperparameters identical to Stage 1.
 
 ### 11.4 Pair loader
@@ -1358,7 +1401,8 @@ def forward_backward(self, batch):
     p_j = F.softmax(logits_j, dim=-1)
     loss_nc = js_divergence(p_i, p_j)
 
-    loss = loss_promptsrc + config.lambda_nc * loss_nc
+    lambda_nc = config.lambda_nc_max * min(1.0, epoch_progress / config.lambda_nc_warmup_epochs)
+    loss = loss_promptsrc + lambda_nc * loss_nc
 
     optim.zero_grad()
     loss.backward()
@@ -1476,6 +1520,8 @@ Base it on the PromptSRC few-shot config, with changes:
 OPTIM:
   NAME: "sgd"
   LR: 0.00025
+  MOMENTUM: 0.9
+  WEIGHT_DECAY: 0.0005
   MAX_EPOCH: 5
   LR_SCHEDULER: "cosine"
   WARMUP_EPOCH: 0
@@ -1499,7 +1545,8 @@ TRAINER:
     NEIGHBOR_K: 1
     FALLBACK_K: 5
     MIN_PAIRS_FRACTION: 0.25
-    LAMBDA_NC: 1.0
+    LAMBDA_NC_MAX: 1.0
+    LAMBDA_NC_WARMUP_EPOCHS: 1
     STAGE2_EPOCHS: 5
     STAGE2_LR: 0.00025
     PAIR_BATCH_SIZE: 8
@@ -1738,7 +1785,9 @@ Stage 1 and Stage 2 should log one JSON object at a fixed interval, for example 
   "loss_scl_image": 0.222,
   "loss_scl_logits": 0.033,
   "loss_nc": 0.041,
-  "lambda_nc": 1.0,
+  "lambda_nc": 0.74,
+  "lambda_nc_max": 1.0,
+  "lambda_nc_warmup_epochs": 1,
   "batch_size": 4,
   "pair_batch_size": 8,
   "grad_norm_prompt": 0.87,
@@ -1780,7 +1829,7 @@ Diagnostics should write:
   "seed": 1,
   "num_unlabeled": 5008,
   "num_real_pairs": 2801,
-  "neighbor_k": 1,
+  "neighbor_k": 5,
   "edge_disagreement": 0.21,
   "mean_js": 0.034,
   "mean_entropy": 1.74,
@@ -1911,15 +1960,16 @@ Symptoms:
 
 Actions, in order:
 
-1. Reduce `LAMBDA_NC` from 1.0 to 0.1.
-2. Reduce Stage 2 LR from 2.5e-4 to 1e-4.
-3. Use deterministic transforms for pair images.
-4. Reduce pair batch size if memory issue, not for stability.
-5. Do not add new losses.
+1. Confirm the one-epoch `lambda_nc` warmup is active.
+2. Reduce `LAMBDA_NC_MAX` from 1.0 to 0.1.
+3. Reduce Stage 2 LR from 2.5e-4 to 1e-4.
+4. Use deterministic transforms for pair images.
+5. Reduce pair batch size if memory issue, not for stability.
+6. Do not add new losses.
 
-### 18.2 If too few mutual top-1 pairs
+### 18.2 If a run records `neighbor_k_requested = 1`
 
-Use mutual top-5 fallback. Record this in metadata.
+Interpret this as the legacy construction path. The final protocol is determined by `neighbor_k_used`. If `neighbor_k_used = 5`, report the run as mutual top-5. If `neighbor_k_used = 1`, mark it as a secondary top-1 ablation and do not mix it with the primary PromptSRC-NC results.
 
 ### 18.3 If shuffled graph outperforms real graph
 
@@ -1962,7 +2012,7 @@ This is a scientifically plausible outcome. The conclusion should be dataset-con
 - [ ] Build deterministic unlabeled loader.
 - [ ] Extract frozen CLIP image features.
 - [ ] Save normalized features.
-- [ ] Build real mutual-neighbor pairs.
+- [ ] Build real reciprocal mutual top-5 neighbor pairs.
 - [ ] Build degree-preserving shuffled pairs.
 - [ ] Save metadata and sanity stats.
 

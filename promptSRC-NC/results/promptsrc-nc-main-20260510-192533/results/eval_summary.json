@@ -1,0 +1,28 @@
+{
+  "rows": [
+    {
+      "dataset": "oxford_flowers",
+      "num_promptsrc": 1,
+      "num_real": 1,
+      "num_shuffled": 1,
+      "promptsrc_mean": 0.953714981729598,
+      "promptsrc_nc_real_mean": 0.9602111246447422,
+      "promptsrc_nc_real_std": 0.0,
+      "promptsrc_nc_shuffled_mean": 0.953714981729598,
+      "promptsrc_nc_shuffled_std": 0.0,
+      "promptsrc_std": 0.0,
+      "real_minus_promptsrc": 0.006496142915144221,
+      "real_minus_shuffled": 0.006496142915144221,
+      "shots": 16
+    },
+    {
+      "dataset": "Average",
+      "promptsrc_mean": 0.953714981729598,
+      "promptsrc_nc_real_mean": 0.9602111246447422,
+      "promptsrc_nc_shuffled_mean": 0.953714981729598,
+      "real_minus_promptsrc": 0.006496142915144221,
+      "real_minus_shuffled": 0.006496142915144221,
+      "shots": 16
+    }
+  ]
+}

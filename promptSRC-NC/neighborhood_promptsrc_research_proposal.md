@@ -10,7 +10,7 @@ This project studies a narrow, technically simple question:
 
 > Can a completed few-shot PromptSRC solution be improved by a short second-stage adaptation that uses unlabeled target images only through frozen-CLIP nearest-neighbor relations?
 
-The proposed method starts from the official PromptSRC algorithm, implemented here as standalone PyTorch/OpenCLIP code for Modal cloud runs. PromptSRC first learns deep visual and textual prompts from the labeled few-shot split while keeping CLIP’s pretrained image and text encoders frozen. We then add a lightweight second stage: compute frozen-CLIP image embeddings for unlabeled training images, form reliable nearest-neighbor pairs, and continue prompt optimization with a symmetric prediction-consistency loss over those pairs. The unlabeled images never receive pseudo-labels. They provide only local relational structure: “these two images are close under frozen CLIP, so the prompted classifier should not predict them very differently.”
+The proposed method starts from the official PromptSRC algorithm, implemented here as standalone PyTorch/OpenCLIP code for Modal cloud runs. PromptSRC first learns deep visual and textual prompts from the labeled few-shot split while keeping CLIP’s pretrained image and text encoders frozen. We then add a lightweight second stage: compute frozen-CLIP image embeddings for unlabeled training images, form reciprocal mutual top-5 neighbor pairs, and continue prompt optimization with a symmetric prediction-consistency loss over those pairs. The unlabeled images never receive pseudo-labels. They provide only local relational structure: “these two images are close under frozen CLIP, so the prompted classifier should not predict them very differently.”
 
 The minimal experimental design uses three variants:
 
@@ -97,7 +97,7 @@ Avoid naming the method “graph PromptSRC,” “manifold PromptSRC,” “dist
 
 Short method-section wording:
 
-> We propose PromptSRC-NC, a neighborhood-consistency extension of PromptSRC. After training PromptSRC on the few-shot labeled set, we construct frozen-CLIP nearest-neighbor pairs over unlabeled target images and continue prompt optimization with a symmetric prediction-consistency loss over those pairs.
+> We propose PromptSRC-NC, a neighborhood-consistency extension of PromptSRC. After training PromptSRC on the few-shot labeled set, we construct reciprocal mutual top-5 frozen-CLIP neighbor pairs over unlabeled target images and continue prompt optimization with a symmetric prediction-consistency loss over those pairs.
 
 ### 3.2 High-level method
 
@@ -123,7 +123,15 @@ Construct a fixed set of neighbor pairs:
 \mathcal{P}_{real} = \{(u_i, u_j)\}
 \]
 
-using mutual nearest neighbors or mutual top-\(k\) neighbors. The simplest default is mutual top-1; if too few pairs are obtained, use mutual top-5. The neighbor structure is fixed and is not refreshed after PromptSRC.
+using **reciprocal mutual top-5** frozen-CLIP neighbors. A pair \((u_i, u_j)\) is retained only when each image appears in the other image's top-5 neighbor set. The neighbor structure is fixed and is not refreshed after PromptSRC.
+
+The top-5 value is the primary intended implementation, not a per-dataset tuned hyperparameter. It follows from three design principles:
+
+1. **Reciprocity over one-way proximity.** Mutual edges reduce hub effects and discard asymmetric nearest-neighbor links caused by uneven density in frozen-CLIP space.
+2. **Enough graph coverage for learning.** Strict mutual top-1 can be too sparse because many nearest-neighbor relations are one-way. A graph that is extremely precise but covers too little of the unlabeled pool gives Stage 2 a weak and unstable training signal.
+3. **Locality without full graph complexity.** Mutual top-5 stays within a small local neighborhood while avoiding graph-Laplacian normalization, graph refresh, thresholds, or pseudo-labeling.
+
+The implementation may retain a top-1 construction path for legacy checks or ablations, but it should not be treated as the final PromptSRC-NC protocol. Final results should report the actual `neighbor_k_used` field from neighbor metadata and should be interpreted as mutual top-5 when `neighbor_k_used = 5`.
 
 This design avoids circularity. The geometry used for adaptation is CLIP’s pretrained geometry over the unlabeled target images, not geometry already shaped by the few-shot labels.
 
@@ -231,7 +239,7 @@ The proposed method is a lightweight CLIP-prompt analogue of this principle. It 
 
 The claim is deliberately local:
 
-> We do not recover the true data manifold. We use frozen CLIP nearest-neighbor pairs as a finite-sample approximation of local target-space geometry.
+> We do not recover the true data manifold. We use reciprocal mutual top-5 frozen-CLIP neighbor pairs as a finite-sample approximation of local target-space geometry.
 
 ### 5.2 Relation to PromptSRC
 
@@ -518,7 +526,8 @@ Before training, compute and log:
 - mean cosine similarity of real pairs;
 - mean cosine similarity of shuffled pairs;
 - distribution of node degrees;
-- percentage of mutual nearest-neighbor pairs retained.
+- effective `neighbor_k_used`, which should be 5 for the final PromptSRC-NC protocol;
+- fraction of unlabeled images connected by at least one mutual top-5 edge.
 
 These are cheap and make the paper/report more credible.
 
@@ -549,7 +558,7 @@ Stanford Cars and Flowers102 may have nearest-neighbor pairs that are visually c
 
 Mitigation:
 
-- Use mutual nearest neighbors.
+- Use reciprocal mutual top-5 neighbors, not one-way nearest-neighbor edges.
 - Keep the loss symmetric and weak.
 - Keep Stage 2 short.
 - Use the shuffled control to diagnose whether meaningful edges help or hurt.
@@ -563,7 +572,7 @@ Mitigation:
 
 - Keep \(L_{\text{PromptSRC}}\) active during Stage 2.
 - Use a short Stage 2.
-- Use a conservative \(\lambda_{\text{NN}}\).
+- Use a conservative \(\lambda_{\text{NN}}\) with a fixed one-epoch linear warmup from 0 to the maximum value.
 - Do not use entropy minimization or pseudo-labeling in the core method.
 
 ### 12.3 Confounded comparison from extra training
@@ -592,7 +601,7 @@ GPU availability, pricing, and runtime can change. Record the Modal GPU type, li
 
 The final report should make a modest, defensible claim:
 
-> We propose a lightweight, teacher-free unlabeled adaptation stage for PromptSRC. Instead of assigning pseudo-labels, we use frozen CLIP to construct nearest-neighbor pairs over unlabeled training images and regularize the prompted classifier to be locally consistent over those pairs. This tests whether unlabeled target-space geometry can refine a few-shot prompt solution beyond PromptSRC’s model-intrinsic self-regularization.
+> We propose a lightweight, teacher-free unlabeled adaptation stage for PromptSRC. Instead of assigning pseudo-labels, we use frozen CLIP to construct reciprocal mutual top-5 neighbor pairs over unlabeled training images and regularize the prompted classifier to be locally consistent over those pairs. This tests whether unlabeled target-space geometry can refine a few-shot prompt solution beyond PromptSRC’s model-intrinsic self-regularization.
 
 The contribution is not “new state of the art.” The contribution is a clean experiment around a precise question:
 
