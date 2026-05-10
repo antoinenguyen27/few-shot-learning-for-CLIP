@@ -12,7 +12,7 @@ from .eval import checkpoint_for_ref, load_model_for_checkpoint
 from .losses import entropy_from_logits, js_divergence_from_logits
 from .neighbors import validate_neighbor_artifacts
 from .pair_dataset import _read_jsonl
-from .structured_logging import append_jsonl, read_json, write_json
+from .structured_logging import append_jsonl, emit_status, read_json, write_json
 from .train import _device_type, _use_amp
 
 
@@ -27,6 +27,16 @@ def run_diagnostics(
     from PIL import Image
 
     pair_dir = Path(pair_dir or neighbor_dir(run_root, config.run_id, config.dataset, config.shots, config.seed))
+    emit_status(
+        "diagnostics_start",
+        run_id=config.run_id,
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        checkpoint=str(checkpoint_path),
+        neighbor_dir=str(pair_dir),
+    )
     model, _loaders, checkpoint = load_model_for_checkpoint(config, data_root, checkpoint_path)
     model.eval()
     _train, _val, _test, _unlabeled, split, _classnames = load_split_records(
@@ -36,7 +46,12 @@ def run_diagnostics(
         config.seed,
         config.protocol,
     )
-    validate_neighbor_artifacts(pair_dir, config, split)
+    validate_neighbor_artifacts(
+        pair_dir,
+        config,
+        split,
+        unlabeled_records=_unlabeled[: config.max_unlabeled_images] if config.max_unlabeled_images else _unlabeled,
+    )
     items = _read_jsonl(pair_dir / "unlabeled_items.jsonl")
     pair_payload = torch.load(pair_dir / "real_pairs.pt", map_location="cpu")
     pairs = pair_payload["pairs"].long()
@@ -96,6 +111,7 @@ def run_diagnostics(
     suffix = f"{method.lower().replace('-', '_')}_{pair_mode}".replace(" ", "_")
     write_json(output_dir / f"{suffix}.json", record)
     append_jsonl(Path(run_root) / config.run_id / "logs" / "diagnostics.jsonl", record)
+    emit_status("diagnostics_complete", **{key: value for key, value in record.items() if key != "event"})
     return record
 
 
@@ -131,7 +147,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--pair-dir", default="")
     parser.add_argument("--eval-batch-size", type=int, default=100)
     parser.add_argument("--num-workers", type=int, default=8)
-    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="amp")
+    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="fp32")
     parser.add_argument("--max-unlabeled-images", type=int, default=None)
     args = parser.parse_args(argv)
     config = config_from_args(args)

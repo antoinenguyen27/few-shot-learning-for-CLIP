@@ -20,9 +20,10 @@ dependencies = [
   "Pillow>=10.0",
   "tqdm>=4.66",
   "kagglehub>=0.3",
+  "hf-transfer>=0.1.9",
   "orjson>=3.9",
   "psutil>=5.9",
-  "pynvml>=11.5",
+  "nvidia-ml-py>=12",
   "rich>=13.7",
   "pyyaml>=6.0",
 ]

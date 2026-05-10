@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from .config import PromptSRCNCConfig, neighbor_dir
-from .data import PromptSRCNCDataset, load_split_records
+from .data import ManifestRecord, PromptSRCNCDataset, load_split_records
 from .model import build_openclip_bundle, _normalize
 from .provenance import (
     UNLABELED_POLICY_TRAIN_REMAIN,
@@ -17,7 +17,7 @@ from .provenance import (
     split_hash,
     validate_neighbor_metadata,
 )
-from .structured_logging import append_jsonl, write_json
+from .structured_logging import append_jsonl, emit_status, write_json
 
 
 def _device() -> str:
@@ -30,7 +30,7 @@ def extract_frozen_features(
     config: PromptSRCNCConfig,
     data_root: str | Path,
     batch_size: int | None = None,
-) -> tuple[Any, list[dict[str, Any]], Any]:
+) -> tuple[Any, list[dict[str, Any]], Any, str]:
     import torch
     from torch.utils.data import DataLoader
 
@@ -47,7 +47,29 @@ def extract_frozen_features(
         raise RuntimeError("Unsafe split: test IDs appeared in unlabeled pool")
 
     device = _device()
+    emit_status(
+        "neighbors_model_load_start",
+        run_id=config.run_id,
+        stage="neighbors",
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        num_unlabeled=len(unlabeled),
+        device=device,
+    )
     bundle = build_openclip_bundle(config.backbone, config.pretrained, device=device, precision="fp32")
+    emit_status(
+        "neighbors_model_ready",
+        run_id=config.run_id,
+        stage="neighbors",
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        openclip_model_name=bundle.model_name,
+        device=device,
+    )
     bundle.model.eval()
     loader = DataLoader(
         PromptSRCNCDataset(unlabeled, bundle.eval_preprocess),
@@ -59,8 +81,9 @@ def extract_frozen_features(
 
     features = []
     items: list[dict[str, Any]] = []
+    num_batches = len(loader)
     with torch.no_grad():
-        for batch in loader:
+        for batch_index, batch in enumerate(loader, start=1):
             images = batch["image"].to(device)
             try:
                 feats = bundle.model.encode_image(images, normalize=True)
@@ -82,9 +105,22 @@ def extract_frozen_features(
                         "classname": str(classname),
                     }
                 )
+            if batch_index % max(1, config.log_interval) == 0 or batch_index == num_batches:
+                emit_status(
+                    "neighbors_feature_batch",
+                    run_id=config.run_id,
+                    stage="neighbors",
+                    dataset=config.dataset,
+                    shots=config.shots,
+                    seed=config.seed,
+                    batch=batch_index,
+                    batches=num_batches,
+                    encoded_items=len(items),
+                    num_unlabeled=len(unlabeled),
+                )
     if not features:
         raise ValueError("No unlabeled features were extracted")
-    return torch.cat(features, dim=0), items, split
+    return torch.cat(features, dim=0), items, split, bundle.model_name
 
 
 def mutual_knn_pairs(features: Any, k: int) -> tuple[Any, Any]:
@@ -177,17 +213,52 @@ def _degree_sequence(edges: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
     return sorted(counts.items())
 
 
-def validate_neighbor_artifacts(pair_dir: str | Path, config: PromptSRCNCConfig, split: Any) -> dict[str, Any]:
+def _normalized_path_string(path: str) -> str:
+    return str(Path(path).expanduser().resolve(strict=False))
+
+
+def _validate_pair_tensor(pairs: Any, *, name: str, expected_num_unlabeled: int) -> None:
+    if pairs.ndim != 2 or int(pairs.shape[1]) != 2:
+        raise ValueError(f"Neighbor artifact {name} pairs must have shape [N, 2]")
+    if pairs.numel() == 0:
+        return
+    if int(pairs.min()) < 0 or int(pairs.max()) >= expected_num_unlabeled:
+        raise ValueError(f"Neighbor artifact {name} contains pair indices outside unlabeled_items")
+    if bool((pairs[:, 0] == pairs[:, 1]).any().item()):
+        raise ValueError(f"Neighbor artifact {name} pairs contain self-loops")
+    if bool((pairs[:, 0] >= pairs[:, 1]).any().item()):
+        raise ValueError(f"Neighbor artifact {name} pairs must be canonical undirected pairs with i < j")
+    canonical = [tuple(map(int, pair)) for pair in pairs.tolist()]
+    if len(set(canonical)) != len(canonical):
+        raise ValueError(f"Neighbor artifact {name} pairs contain duplicate undirected edges")
+
+
+def validate_neighbor_artifacts(
+    pair_dir: str | Path,
+    config: PromptSRCNCConfig,
+    split: Any,
+    *,
+    unlabeled_records: Sequence[ManifestRecord] | None = None,
+) -> dict[str, Any]:
     import torch
 
     pair_dir = Path(pair_dir)
-    required = ("metadata.json", "unlabeled_items.jsonl", "real_pairs.pt", "shuffled_pairs.pt")
+    required = ("metadata.json", "unlabeled_items.jsonl", "features.pt", "real_pairs.pt", "shuffled_pairs.pt")
     missing = [name for name in required if not (pair_dir / name).exists()]
     if missing:
         raise FileNotFoundError(f"Neighbor artifact directory {pair_dir} is missing: {missing}")
     with (pair_dir / "metadata.json").open("r", encoding="utf-8") as handle:
         metadata = json.load(handle)
     validate_neighbor_metadata(metadata, config, split)
+    if metadata.get("feature_source") != "frozen_unprompted_openclip_before_promptsrc":
+        raise ValueError(f"Neighbor artifact {pair_dir} has invalid feature_source={metadata.get('feature_source')!r}")
+    if int(metadata.get("neighbor_k_requested", -1)) != int(config.neighbor_k):
+        raise ValueError(f"Neighbor artifact {pair_dir} neighbor_k_requested does not match config")
+    neighbor_k_used = int(metadata.get("neighbor_k_used", -1))
+    if neighbor_k_used not in {int(config.neighbor_k), int(config.fallback_k)}:
+        raise ValueError(f"Neighbor artifact {pair_dir} neighbor_k_used must be neighbor_k or fallback_k")
+    if bool(metadata.get("fallback_used")) != (neighbor_k_used != int(config.neighbor_k)):
+        raise ValueError(f"Neighbor artifact {pair_dir} fallback_used does not match neighbor_k_used")
     items = []
     with (pair_dir / "unlabeled_items.jsonl").open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):
@@ -201,10 +272,41 @@ def validate_neighbor_artifacts(pair_dir: str | Path, config: PromptSRCNCConfig,
     if len(items) != expected_num_unlabeled:
         raise ValueError(f"Neighbor artifact {pair_dir} has {len(items)} items; expected {expected_num_unlabeled}")
     item_uids = [str(item.get("uid")) for item in items]
+    item_paths = [_normalized_path_string(str(item.get("impath"))) for item in items]
     if len(set(item_uids)) != len(item_uids):
         raise ValueError(f"Neighbor artifact {pair_dir} contains duplicate unlabeled item IDs")
     if ordered_ids_hash(item_uids) != metadata["unlabeled_ids_hash"]:
         raise ValueError(f"Neighbor artifact {pair_dir} item IDs do not match metadata unlabeled_ids_hash")
+    if metadata.get("unlabeled_paths_hash") is not None and ordered_ids_hash(item_paths) != metadata["unlabeled_paths_hash"]:
+        raise ValueError(f"Neighbor artifact {pair_dir} item paths do not match metadata unlabeled_paths_hash")
+    if unlabeled_records is not None:
+        records_by_uid = {record.uid: record for record in unlabeled_records}
+        for uid, artifact_path in zip(item_uids, item_paths, strict=True):
+            record = records_by_uid.get(uid)
+            if record is None:
+                raise ValueError(f"Neighbor artifact {pair_dir} UID {uid} is missing from active unlabeled records")
+            manifest_path = _normalized_path_string(record.image_path)
+            if artifact_path != manifest_path:
+                raise ValueError(
+                    f"Neighbor artifact {pair_dir} image_path for UID {uid} is {artifact_path!r}; "
+                    f"expected active manifest path {manifest_path!r}"
+                )
+    features_payload = torch.load(pair_dir / "features.pt", map_location="cpu")
+    features = features_payload.get("features")
+    if features is None or features.ndim != 2:
+        raise ValueError(f"Neighbor artifact {pair_dir / 'features.pt'} must contain features with shape [N, D]")
+    if int(features.shape[0]) != expected_num_unlabeled:
+        raise ValueError(f"Neighbor artifact {pair_dir / 'features.pt'} feature count does not match metadata")
+    feature_uids = [str(uid) for uid in features_payload.get("uids", [])]
+    feature_paths = [_normalized_path_string(str(path)) for path in features_payload.get("impaths", [])]
+    if feature_uids != item_uids:
+        raise ValueError(f"Neighbor artifact {pair_dir / 'features.pt'} UIDs do not match unlabeled_items")
+    if feature_paths != item_paths:
+        raise ValueError(f"Neighbor artifact {pair_dir / 'features.pt'} image paths do not match unlabeled_items")
+    if features_payload.get("feature_source") not in {None, "frozen_unprompted_openclip_before_promptsrc"}:
+        raise ValueError(f"Neighbor artifact {pair_dir / 'features.pt'} has invalid feature_source")
+    if features_payload.get("openclip_model_name") != metadata.get("openclip_model_name"):
+        raise ValueError(f"Neighbor artifact {pair_dir / 'features.pt'} OpenCLIP model name does not match metadata")
     pair_payloads = {
         "real_pairs.pt": torch.load(pair_dir / "real_pairs.pt", map_location="cpu"),
         "shuffled_pairs.pt": torch.load(pair_dir / "shuffled_pairs.pt", map_location="cpu"),
@@ -215,11 +317,16 @@ def validate_neighbor_artifacts(pair_dir: str | Path, config: PromptSRCNCConfig,
         if pairs is None:
             raise ValueError(f"Neighbor artifact {pair_dir / name} is missing pairs")
         pairs = pairs.long()
-        if pairs.ndim != 2 or int(pairs.shape[1]) != 2:
-            raise ValueError(f"Neighbor artifact {pair_dir / name} pairs must have shape [N, 2]")
-        if pairs.numel() and (int(pairs.min()) < 0 or int(pairs.max()) >= expected_num_unlabeled):
-            raise ValueError(f"Neighbor artifact {pair_dir / name} contains pair indices outside unlabeled_items")
+        _validate_pair_tensor(pairs, name=str(pair_dir / name), expected_num_unlabeled=expected_num_unlabeled)
         pair_tensors[name] = pairs
+    real_payload = pair_payloads["real_pairs.pt"]
+    if real_payload.get("mutual") is not True:
+        raise ValueError(f"Neighbor artifact {pair_dir / 'real_pairs.pt'} must record mutual=True")
+    if int(real_payload.get("neighbor_k", -1)) != neighbor_k_used:
+        raise ValueError(f"Neighbor artifact {pair_dir / 'real_pairs.pt'} neighbor_k does not match metadata")
+    shuffled_payload = pair_payloads["shuffled_pairs.pt"]
+    if shuffled_payload.get("source") != "degree_preserving_edge_swap":
+        raise ValueError(f"Neighbor artifact {pair_dir / 'shuffled_pairs.pt'} must record degree-preserving source")
     if int(pair_tensors["real_pairs.pt"].shape[0]) != int(metadata["num_real_pairs"]):
         raise ValueError(f"Neighbor artifact {pair_dir} real pair count does not match metadata")
     if int(pair_tensors["shuffled_pairs.pt"].shape[0]) != int(metadata["num_shuffled_pairs"]):
@@ -241,7 +348,19 @@ def build_neighbor_artifacts(
 
     output_dir = neighbor_dir(run_root, config.run_id, config.dataset, config.shots, config.seed)
     output_dir.mkdir(parents=True, exist_ok=True)
-    features, items, split = extract_frozen_features(config, data_root)
+    emit_status(
+        "neighbors_start",
+        run_id=config.run_id,
+        stage="neighbors",
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        neighbor_k=config.neighbor_k,
+        fallback_k=config.fallback_k,
+        max_unlabeled_images=config.max_unlabeled_images,
+    )
+    features, items, split, openclip_model_name = extract_frozen_features(config, data_root)
     num_unlabeled = int(features.shape[0])
     requested_pairs, requested_cosines = mutual_knn_pairs(features, config.neighbor_k)
     neighbor_k_used = config.neighbor_k
@@ -275,9 +394,11 @@ def build_neighbor_artifacts(
         {
             "features": features,
             "uids": [item["uid"] for item in items],
-            "impaths": [item["impath"] for item in items],
+            "impaths": [_normalized_path_string(item["impath"]) for item in items],
             "backbone": config.backbone,
+            "openclip_model_name": openclip_model_name,
             "pretrained": config.pretrained,
+            "feature_source": "frozen_unprompted_openclip_before_promptsrc",
         },
         output_dir / "features.pt",
     )
@@ -307,11 +428,14 @@ def build_neighbor_artifacts(
         "unlabeled_policy": UNLABELED_POLICY_TRAIN_REMAIN,
         "uses_test_images_for_unlabeled": False,
         "clip_backbone": config.backbone,
+        "openclip_model_name": openclip_model_name,
         "pretrained": config.pretrained,
         "feature_source": "frozen_unprompted_openclip_before_promptsrc",
         "num_unlabeled": num_unlabeled,
         "max_unlabeled_images": config.max_unlabeled_images,
+        "unlabeled_pool_variant": "capped_train_remain_prefix" if config.max_unlabeled_images else "full_train_remain",
         "unlabeled_ids_hash": ordered_ids_hash(item["uid"] for item in items),
+        "unlabeled_paths_hash": ordered_ids_hash(_normalized_path_string(item["impath"]) for item in items),
         "split_hash": split_hash(split),
         "neighbor_k_requested": config.neighbor_k,
         "neighbor_k_used": neighbor_k_used,
@@ -329,6 +453,7 @@ def build_neighbor_artifacts(
     write_json(output_dir / "metadata.json", metadata)
     if log_path is not None:
         append_jsonl(log_path, {"event": "neighbors_built", **metadata, "neighbor_dir": str(output_dir)})
+    emit_status("neighbors_built", run_id=config.run_id, **metadata, neighbor_dir=str(output_dir))
     return output_dir
 
 

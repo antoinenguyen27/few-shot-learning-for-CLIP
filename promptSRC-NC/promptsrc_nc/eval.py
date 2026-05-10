@@ -9,8 +9,22 @@ from .config import PromptSRCNCConfig, stage1_dir, stage2_dir
 from .data import build_data_loaders, load_split_records
 from .model import PromptSRCModel, build_openclip_bundle
 from .provenance import checkpoint_provenance, validate_checkpoint_for_config
-from .structured_logging import append_jsonl, write_json
+from .structured_logging import append_jsonl, emit_status, write_json
 from .train import device_name, evaluate_loader
+
+
+def _evaluation_expectations(checkpoint: dict[str, Any]) -> tuple[str, str, str]:
+    method = checkpoint.get("method")
+    if method == "PromptSRC":
+        return "PromptSRC", "stage1", "stage1_gpa"
+    if method == "PromptSRC-NC":
+        metadata = dict(checkpoint.get("metadata") or {})
+        config = dict(checkpoint.get("config") or {})
+        pair_mode = config.get("pair_mode") or metadata.get("pair_mode")
+        if pair_mode not in {"real", "shuffled"}:
+            raise ValueError("PromptSRC-NC checkpoint is missing a valid pair_mode for evaluation")
+        return "PromptSRC-NC", "stage2", f"stage2_{pair_mode}_final"
+    raise ValueError(f"Unsupported checkpoint method for evaluation: {method!r}")
 
 
 def checkpoint_for_ref(
@@ -42,7 +56,16 @@ def load_model_for_checkpoint(config: PromptSRCNCConfig, data_root: str | Path, 
         config.seed,
         config.protocol,
     )
-    validate_checkpoint_for_config(checkpoint, config, artifact=f"checkpoint {checkpoint_path}", split=_split)
+    expected_method, expected_stage, expected_role = _evaluation_expectations(checkpoint)
+    validate_checkpoint_for_config(
+        checkpoint,
+        config,
+        artifact=f"checkpoint {checkpoint_path}",
+        split=_split,
+        expected_method=expected_method,
+        expected_stage=expected_stage,
+        expected_role=expected_role,
+    )
     bundle = build_openclip_bundle(config.backbone, config.pretrained, device=device_name(), precision=config.precision)
     loaders = build_data_loaders(
         train_records,
@@ -68,6 +91,16 @@ def evaluate_checkpoint(
     checkpoint_path: str | Path,
     split: str = "test",
 ) -> dict[str, Any]:
+    emit_status(
+        "eval_start",
+        run_id=config.run_id,
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        checkpoint=str(checkpoint_path),
+        split=split,
+    )
     model, loaders, checkpoint = load_model_for_checkpoint(config, data_root, checkpoint_path)
     if split not in {"val", "test"}:
         raise ValueError("split must be val or test")
@@ -76,6 +109,8 @@ def evaluate_checkpoint(
     pair_mode = checkpoint.get("config", {}).get("pair_mode")
     if method == "PromptSRC":
         pair_mode = "none"
+    metadata = dict(checkpoint.get("metadata") or {})
+    neighbor_metadata = dict(metadata.get("neighbor_metadata") or {})
     record = {
         "event": "eval_summary",
         "run_id": config.run_id,
@@ -84,12 +119,17 @@ def evaluate_checkpoint(
         "dataset": config.dataset,
         "shots": config.shots,
         "seed": config.seed,
+        "protocol": config.protocol,
         "backbone": config.backbone,
         "split": split,
         "top1_accuracy": metrics["top1_accuracy"],
         "macro_accuracy": metrics["macro_accuracy"],
         "num_examples": metrics["num_examples"],
         "checkpoint": str(checkpoint_path),
+        "checkpoint_role": checkpoint.get("checkpoint_role"),
+        "split_hash": metadata.get("split_hash"),
+        "unlabeled_pool_variant": neighbor_metadata.get("unlabeled_pool_variant", "full_train_remain"),
+        "shuffle_weak_shuffled_control": neighbor_metadata.get("shuffle_weak_shuffled_control"),
         "checkpoint_provenance": checkpoint_provenance(checkpoint),
     }
     output_dir = Path(run_root) / config.run_id / "eval" / config.dataset / f"shot{config.shots}" / f"seed{config.seed}"
@@ -97,6 +137,7 @@ def evaluate_checkpoint(
     suffix = f"{method.lower().replace('-', '_')}_{pair_mode}_{split}".replace(" ", "_")
     write_json(output_dir / f"{suffix}.json", record)
     append_jsonl(Path(run_root) / config.run_id / "logs" / "eval_summary.jsonl", record)
+    emit_status("eval_complete", **{key: value for key, value in record.items() if key != "event"})
     return record
 
 
@@ -135,7 +176,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--eval-batch-size", type=int, default=100)
     parser.add_argument("--num-workers", type=int, default=8)
-    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="amp")
+    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="fp32")
     parser.add_argument("--max-eval-batches", type=int, default=None)
     args = parser.parse_args(argv)
     config = config_from_args(args)

@@ -30,6 +30,7 @@ def run_smoke_test(
             "max_train_batches": 1,
             "max_eval_batches": 1,
             "max_unlabeled_images": config.max_unlabeled_images or 256,
+            "lambda_nc_warmup_epochs": 0.0,
             "log_interval": 1,
             "save_every": 1,
         }
@@ -100,7 +101,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--eval-batch-size", type=int, default=32)
     parser.add_argument("--pair-batch-size", type=int, default=4)
     parser.add_argument("--num-workers", type=int, default=0)
-    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="amp")
+    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="fp32")
     parser.add_argument("--max-unlabeled-images", type=int, default=256)
     args = parser.parse_args(argv)
     print(json.dumps(run_smoke_test(config_from_args(args), args.data_root, args.run_root), indent=2, sort_keys=True))
@@ -108,4 +109,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

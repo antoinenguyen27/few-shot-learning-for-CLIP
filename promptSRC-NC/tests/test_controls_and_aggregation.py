@@ -71,3 +71,45 @@ def test_aggregate_preserves_validation_and_test_metrics(tmp_path: Path) -> None
     assert rows[0]["val_macro"] == pytest.approx(0.3)
     assert rows[0]["test_top1"] == pytest.approx(0.5)
     assert rows[0]["test_macro"] == pytest.approx(0.45)
+
+
+def test_aggregate_reads_eval_json_artifacts_without_shared_jsonl(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs"
+    run_id = "parallel-run"
+    eval_dir = run_root / run_id / "eval" / "eurosat" / "shot16" / "seed1"
+    eval_dir.mkdir(parents=True)
+    base = {
+        "event": "eval_summary",
+        "run_id": run_id,
+        "method": "PromptSRC",
+        "pair_mode": "none",
+        "dataset": "eurosat",
+        "shots": 16,
+        "seed": 1,
+        "backbone": "ViT-B-16",
+        "protocol": "few_shot_all_classes",
+        "checkpoint": "/tmp/gpa.pt",
+        "checkpoint_role": "stage1_gpa",
+        "split_hash": "split-a",
+        "unlabeled_pool_variant": "full_train_remain",
+    }
+    (eval_dir / "promptsrc_none_val.json").write_text(
+        json.dumps({**base, "split": "val", "top1_accuracy": 0.61, "macro_accuracy": 0.59, "num_examples": 10}),
+        encoding="utf-8",
+    )
+    (eval_dir / "promptsrc_none_test.json").write_text(
+        json.dumps({**base, "split": "test", "top1_accuracy": 0.64, "macro_accuracy": 0.62, "num_examples": 20}),
+        encoding="utf-8",
+    )
+
+    result = aggregate_run(run_root, run_id)
+
+    rows = [
+        json.loads(line)
+        for line in (run_root / run_id / "results" / "runs.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert result["num_eval_rows"] == 2
+    assert len(rows) == 1
+    assert rows[0]["val_top1"] == pytest.approx(0.61)
+    assert rows[0]["test_top1"] == pytest.approx(0.64)

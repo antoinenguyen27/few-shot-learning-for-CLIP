@@ -1,6 +1,8 @@
 OPTIM:
   NAME: "sgd"
   LR: 0.00025
+  MOMENTUM: 0.9
+  WEIGHT_DECAY: 0.0005
   MAX_EPOCH: 5
   LR_SCHEDULER: "cosine"
   WARMUP_EPOCH: 0
@@ -17,7 +19,7 @@ TRAINER:
     N_CTX_VISION: 4
     N_CTX_TEXT: 4
     CTX_INIT: "a photo of a"
-    PREC: "amp"
+    PREC: "fp32"
     PROMPT_DEPTH_VISION: 9
     PROMPT_DEPTH_TEXT: 9
     TEXT_LOSS_WEIGHT: 25
@@ -37,4 +39,3 @@ TRAINER:
     UNLABELED_SPLIT: "train_remain"
     USE_TEST_IMAGES: false
     USE_STAGE2_GPA: false
-

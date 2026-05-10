@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import shutil
+import tarfile
+import urllib.request
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-from .config import KAGGLE_HANDLES, canonical_dataset
+from .config import KAGGLE_HANDLES, OFFICIAL_DATASET_SOURCES, canonical_dataset
 from .structured_logging import append_jsonl, read_json, write_json
 
 
@@ -28,6 +31,28 @@ EUROSAT_CLASSNAMES = {
     "River": "River",
     "SeaLake": "Sea or Lake",
 }
+
+FLOWERS102_DOWNLOADS = {
+    "images": (
+        "https://www.robots.ox.ac.uk/~vgg/data/flowers/102/102flowers.tgz",
+        "52808999861908f626f3c1f4e79d11fa",
+    ),
+    "labels": (
+        "https://www.robots.ox.ac.uk/~vgg/data/flowers/102/imagelabels.mat",
+        "e0620be6f572b9609742df49c70aed4d",
+    ),
+}
+
+STANFORD_CARS_TEST_ANNOS_WITH_LABELS_DOWNLOADS = (
+    (
+        "http://ai.stanford.edu/~jkrause/car196/cars_test_annos_withlabels.mat",
+        "b0a2b23655a3edd16d84508592a98d10",
+    ),
+    (
+        "https://raw.githubusercontent.com/jhpohovey/StanfordCars-Dataset/main/stanford_cars/cars_test_annos_withlabels.mat",
+        "b0a2b23655a3edd16d84508592a98d10",
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -166,6 +191,45 @@ def validate_split_integrity(split: SplitSpec) -> None:
                 raise ValueError(f"Split {split.dataset}/{split.shots}/seed{split.seed} has {left_name}-{right_name} overlap at {first}")
     if split.metadata.get("uses_test_images_for_unlabeled") is True:
         raise ValueError("Primary PromptSRC-NC split forbids test images in the unlabeled pool")
+
+
+def validate_split_against_manifest(records: Sequence[ManifestRecord], split: SplitSpec) -> None:
+    by_id = {record.uid: record for record in records}
+    missing = [
+        uid
+        for uid in (*split.train_ids, *split.val_ids, *split.test_ids, *split.unlabeled_ids)
+        if uid not in by_id
+    ]
+    if missing:
+        raise KeyError(f"{len(missing)} split IDs are missing from manifest; first missing id: {missing[0]}")
+
+    val_sources = {"val", "valid", "validation"}
+    for uid in split.train_ids:
+        if by_id[uid].source_split != "train":
+            raise ValueError(f"Few-shot train ID {uid} has source_split={by_id[uid].source_split!r}; expected 'train'")
+    for uid in split.val_ids:
+        if by_id[uid].source_split not in val_sources:
+            raise ValueError(f"Validation ID {uid} has source_split={by_id[uid].source_split!r}; expected validation source")
+    for uid in split.test_ids:
+        if by_id[uid].source_split != "test":
+            raise ValueError(f"Test ID {uid} has source_split={by_id[uid].source_split!r}; expected 'test'")
+    for uid in split.unlabeled_ids:
+        if by_id[uid].source_split != "train":
+            raise ValueError(
+                f"unlabeled pool ID {uid} has source_split={by_id[uid].source_split!r}; expected 'train'"
+            )
+
+    if split.protocol == "few_shot_all_classes":
+        train_ids = set(split.train_ids)
+        expected_unlabeled = tuple(
+            record.uid
+            for record in sorted((record for record in records if record.source_split == "train"), key=lambda item: item.uid)
+            if record.uid not in train_ids
+        )
+        if tuple(split.unlabeled_ids) != expected_unlabeled:
+            raise ValueError(
+                "Split unlabeled pool must equal full training split minus few-shot labeled train IDs"
+            )
 
 
 def class_names_from_records(records: Iterable[ManifestRecord]) -> list[str]:
@@ -311,6 +375,62 @@ def _uid(dataset: str, root: Path, image_path: Path) -> str:
 
 def _normalize_class_name(name: str) -> str:
     return name.replace("_", " ").replace("-", " ").strip()
+
+
+def _flowers_class_name(one_based_label: int, cat_to_name: Mapping[str, Any]) -> str:
+    name = cat_to_name.get(str(one_based_label))
+    if name is not None:
+        return str(name)
+    try:
+        from torchvision.datasets import Flowers102
+
+        return str(Flowers102.classes[one_based_label - 1])
+    except Exception:
+        return f"flower {one_based_label}"
+
+
+def _mat_scalar(value: Any) -> Any:
+    import numpy as np
+
+    while isinstance(value, np.ndarray):
+        if value.size != 1:
+            raise ValueError(f"Expected scalar MAT value, found shape {value.shape}")
+        value = value.reshape(-1)[0]
+    return value
+
+
+def _has_direct_images(path: Path) -> bool:
+    if not path.exists():
+        return False
+    return any(child.is_file() and child.suffix.lower() in IMAGE_EXTENSIONS for child in path.iterdir())
+
+
+def _first_existing(paths: Sequence[Path]) -> Path:
+    for path in paths:
+        if path.exists():
+            return path
+    return paths[0]
+
+
+def _image_dir_with_images(root: Path, candidates: Sequence[str]) -> str:
+    for candidate in candidates:
+        if _has_direct_images(root / candidate):
+            return candidate
+    for candidate in candidates:
+        if _images_under(root / candidate):
+            return candidate
+    return candidates[0]
+
+
+def validate_manifest_image_paths(records: Sequence[ManifestRecord], dataset: str) -> None:
+    missing = [record for record in records if not Path(record.image_path).is_file()]
+    if missing:
+        first = missing[0]
+        raise FileNotFoundError(
+            f"Manifest for {canonical_dataset(dataset)} references missing image files; "
+            f"found {len(missing)} missing paths, first uid={first.uid}, path={first.image_path}. "
+            "Re-run prepare_data after fixing the dataset layout."
+        )
 
 
 def _load_zhou_split(dataset: str, root: Path, split_file: Path, path_prefix: Path) -> list[ManifestRecord]:
@@ -485,6 +605,13 @@ def build_flowers_manifest(root: Path) -> list[ManifestRecord]:
             )
         return _split_records_by_class(records, 0.5, 0.2, seed=1, source="promptsrc_style_50_20_30_from_labels")
 
+    for test_root in (root / "dataset" / "test", root / "test"):
+        if _has_direct_images(test_root) and not _class_dirs(test_root):
+            raise ValueError(
+                "Flowers102 source has an unlabeled Kaggle test directory; "
+                "use the official VGG Flowers102 source or a class-labeled test layout"
+            )
+
     split_roots = [
         (root / "dataset" / "train", "train"),
         (root / "dataset" / "valid", "val"),
@@ -532,13 +659,31 @@ def build_stanford_cars_manifest(root: Path) -> list[ManifestRecord]:
     if zhou:
         return zhou
 
-    train_file = root / "devkit" / "cars_train_annos.mat"
-    test_file = root / "cars_test_annos_withlabels.mat"
-    meta_file = root / "devkit" / "cars_meta.mat"
+    train_file = _first_existing(
+        (
+            root / "devkit" / "cars_train_annos.mat",
+            root / "car_devkit" / "devkit" / "cars_train_annos.mat",
+        )
+    )
+    test_file = _first_existing(
+        (
+            root / "cars_test_annos_withlabels.mat",
+            root / "devkit" / "cars_test_annos_withlabels.mat",
+            root / "car_devkit" / "devkit" / "cars_test_annos_withlabels.mat",
+        )
+    )
+    meta_file = _first_existing(
+        (
+            root / "devkit" / "cars_meta.mat",
+            root / "car_devkit" / "devkit" / "cars_meta.mat",
+        )
+    )
     if train_file.exists() and test_file.exists() and meta_file.exists():
         from scipy.io import loadmat
 
         class_meta = loadmat(meta_file)["class_names"][0]
+        train_image_dir = _image_dir_with_images(root, ("cars_train", "cars_train/cars_train"))
+        test_image_dir = _image_dir_with_images(root, ("cars_test", "cars_test/cars_test"))
 
         def class_name(label: int) -> str:
             raw = str(class_meta[label][0])
@@ -552,8 +697,8 @@ def build_stanford_cars_manifest(root: Path) -> list[ManifestRecord]:
             annotations = loadmat(anno_path)["annotations"][0]
             out = []
             for item in annotations:
-                image_name = str(item["fname"][0])
-                label_id = int(item["class"][0, 0]) - 1
+                image_name = str(_mat_scalar(item["fname"]))
+                label_id = int(_mat_scalar(item["class"])) - 1
                 image_path = root / image_dir / image_name
                 out.append(
                     ManifestRecord(
@@ -568,8 +713,8 @@ def build_stanford_cars_manifest(root: Path) -> list[ManifestRecord]:
                 )
             return out
 
-        trainval = read_annos("cars_train", train_file, "trainval")
-        test = read_annos("cars_test", test_file, "test")
+        trainval = read_annos(train_image_dir, train_file, "trainval")
+        test = read_annos(test_image_dir, test_file, "test")
         return _trainval_test_records(trainval, test, val_ratio=0.2, seed=1, source="promptsrc_trainval_80_20")
 
     records: list[ManifestRecord] = []
@@ -675,10 +820,143 @@ def make_few_shot_split(
     )
 
 
+def _md5(path: Path) -> str:
+    digest = hashlib.md5()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _download_file(url: str, destination: Path, expected_md5: str | None = None) -> None:
+    if destination.exists() and (expected_md5 is None or _md5(destination) == expected_md5):
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = destination.with_name(f"{destination.name}.download")
+    request = urllib.request.Request(url, headers={"User-Agent": "promptsrc-nc-data-prep/0.1"})
+    try:
+        with urllib.request.urlopen(request, timeout=60 * 30) as response, temp_path.open("wb") as handle:
+            shutil.copyfileobj(response, handle)
+    except Exception as exc:
+        temp_path.unlink(missing_ok=True)
+        raise RuntimeError(f"Failed to download {url}: {exc}") from None
+    if expected_md5 is not None:
+        actual = _md5(temp_path)
+        if actual != expected_md5:
+            temp_path.unlink(missing_ok=True)
+            raise ValueError(f"MD5 mismatch for {url}: expected {expected_md5}, found {actual}")
+    temp_path.replace(destination)
+
+
+def _safe_extract_tgz(archive_path: Path, destination: Path) -> None:
+    destination_resolved = destination.resolve()
+    with tarfile.open(archive_path, "r:gz") as archive:
+        for member in archive.getmembers():
+            member_path = (destination / member.name).resolve()
+            if member_path != destination_resolved and destination_resolved not in member_path.parents:
+                raise ValueError(f"Unsafe path in archive {archive_path}: {member.name}")
+        archive.extractall(destination)
+
+
+def _flowers_cat_to_name() -> dict[str, str]:
+    try:
+        from torchvision.datasets import Flowers102
+
+        return {str(index + 1): str(name) for index, name in enumerate(Flowers102.classes)}
+    except Exception:
+        return {}
+
+
+def _is_official_flowers102_source(path: Path) -> bool:
+    return (path / "jpg").is_dir() and (path / "imagelabels.mat").is_file()
+
+
+def _prepare_official_flowers102_source(destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    archive_path = destination / "102flowers.tgz"
+    images_url, images_md5 = FLOWERS102_DOWNLOADS["images"]
+    labels_url, labels_md5 = FLOWERS102_DOWNLOADS["labels"]
+    _download_file(images_url, archive_path, images_md5)
+    _download_file(labels_url, destination / "imagelabels.mat", labels_md5)
+    _safe_extract_tgz(archive_path, destination)
+    cat_to_name = _flowers_cat_to_name()
+    if cat_to_name:
+        write_json(destination / "cat_to_name.json", cat_to_name)
+    write_json(
+        destination / "source_metadata.json",
+        {
+            "dataset": "oxford_flowers",
+            "source": OFFICIAL_DATASET_SOURCES["oxford_flowers"],
+            "files": sorted(FLOWERS102_DOWNLOADS),
+            "split_source": "promptsrc_style_50_20_30_from_labels",
+        },
+    )
+    if not _is_official_flowers102_source(destination):
+        raise FileNotFoundError("Official Flowers102 download did not produce jpg/ and imagelabels.mat")
+
+
+def _ensure_official_flowers102_downloaded(target: Path, download: bool) -> Path:
+    if _is_official_flowers102_source(target):
+        return target
+    if not download:
+        raise FileNotFoundError(
+            f"{target} is missing the official Flowers102 layout; expected jpg/ and imagelabels.mat"
+        )
+
+    temp_target = target.with_name(f"{target.name}.official-download")
+    if temp_target.exists():
+        shutil.rmtree(temp_target)
+    try:
+        _prepare_official_flowers102_source(temp_target)
+        if target.exists():
+            shutil.rmtree(target)
+        temp_target.replace(target)
+    except Exception:
+        if temp_target.exists():
+            shutil.rmtree(temp_target)
+        raise
+    return target
+
+
+def _has_stanford_cars_labeled_test_annos(target: Path) -> bool:
+    return any(
+        path.exists()
+        for path in (
+            target / "cars_test_annos_withlabels.mat",
+            target / "devkit" / "cars_test_annos_withlabels.mat",
+            target / "car_devkit" / "devkit" / "cars_test_annos_withlabels.mat",
+        )
+    )
+
+
+def _ensure_stanford_cars_labeled_test_annos(target: Path, download: bool) -> None:
+    if _has_stanford_cars_labeled_test_annos(target):
+        return
+    if not download:
+        raise FileNotFoundError(
+            f"{target} is missing cars_test_annos_withlabels.mat; labeled test annotations are required"
+        )
+    errors: list[str] = []
+    for url, expected_md5 in STANFORD_CARS_TEST_ANNOS_WITH_LABELS_DOWNLOADS:
+        try:
+            _download_file(url, target / "cars_test_annos_withlabels.mat", expected_md5)
+            return
+        except Exception as exc:
+            errors.append(str(exc))
+    raise RuntimeError(
+        "Could not download Stanford Cars labeled test annotations from any configured source: "
+        + " | ".join(errors)
+    )
+
+
 def ensure_dataset_downloaded(data_root: str | Path, dataset: str, download: bool = True) -> Path:
     dataset = canonical_dataset(dataset)
     target = extracted_dataset_dir(data_root, dataset)
+    if dataset == "oxford_flowers":
+        return _ensure_official_flowers102_downloaded(target, download)
     if target.exists() and any(target.iterdir()):
+        if dataset == "stanford_cars":
+            _ensure_stanford_cars_labeled_test_annos(target, download)
         return target
     if not download:
         raise FileNotFoundError(f"{target} is missing and download=False")
@@ -692,6 +970,8 @@ def ensure_dataset_downloaded(data_root: str | Path, dataset: str, download: boo
     if target.exists():
         shutil.rmtree(target)
     shutil.copytree(source, target)
+    if dataset == "stanford_cars":
+        _ensure_stanford_cars_labeled_test_annos(target, download)
     return target
 
 
@@ -709,6 +989,7 @@ def prepare_datasets(
         dataset = canonical_dataset(raw_name)
         ensure_dataset_downloaded(data_root, dataset, download=download)
         records = build_manifest_for_dataset(data_root, dataset)
+        validate_manifest_image_paths(records, dataset)
         mpath = manifest_path(data_root, dataset)
         write_manifest(records, mpath)
         split_files = []
@@ -724,7 +1005,11 @@ def prepare_datasets(
             "manifest": str(mpath),
             "splits": split_files,
             "summary": summarize_manifest(records),
-            "source": f"kagglehub:{KAGGLE_HANDLES[dataset]}",
+            "source": (
+                f"official:{OFFICIAL_DATASET_SOURCES[dataset]}"
+                if dataset in OFFICIAL_DATASET_SOURCES
+                else f"kagglehub:{KAGGLE_HANDLES[dataset]}"
+            ),
         }
         summaries.append(summary)
         if log_path is not None:
@@ -743,6 +1028,7 @@ def load_split_records(
     records = read_manifest(manifest_path(data_root, dataset))
     split = read_split(split_path(data_root, dataset, protocol, shots, seed))
     validate_split_integrity(split)
+    validate_split_against_manifest(records, split)
     train = records_by_ids(records, split.train_ids)
     val = records_by_ids(records, split.val_ids)
     test = records_by_ids(records, split.test_ids)

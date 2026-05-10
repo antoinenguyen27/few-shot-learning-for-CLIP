@@ -8,6 +8,7 @@ from typing import Any, Iterable, Mapping
 
 from .config import PromptSRCNCConfig, canonical_backbone, canonical_dataset
 from .data import SplitSpec
+from .model import openclip_model_name_for_weights
 
 
 UNLABELED_POLICY_TRAIN_REMAIN = "full_training_split_minus_fewshot_labeled_train"
@@ -119,6 +120,7 @@ def validate_neighbor_metadata(
         "shots": config.shots,
         "seed": config.seed,
         "clip_backbone": config.backbone,
+        "openclip_model_name": openclip_model_name_for_weights(config.backbone, config.pretrained),
         "pretrained": config.pretrained,
         "unlabeled_policy": UNLABELED_POLICY_TRAIN_REMAIN,
         "uses_test_images_for_unlabeled": False,

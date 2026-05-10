@@ -5,6 +5,7 @@ by PromptSRC for frozen teacher text features.
 """
 
 IMAGENET_TEMPLATES = (
+    "a photo of a {}.",
     "a bad photo of a {}.",
     "a photo of many {}.",
     "a sculpture of a {}.",
@@ -44,7 +45,6 @@ IMAGENET_TEMPLATES = (
     "a photo of one {}.",
     "a doodle of a {}.",
     "a close-up photo of the {}.",
-    "a photo of a {}.",
     "the origami {}.",
     "the {} in a video game.",
     "a sketch of a {}.",
@@ -65,25 +65,4 @@ IMAGENET_TEMPLATES = (
     "a embroidered {}.",
     "a pixelated photo of a {}.",
     "itap of the {}.",
-    "a jpeg corrupted photo of the {}.",
-    "a good photo of a {}.",
-    "a plushie {}.",
-    "a photo of the nice {}.",
-    "a photo of the small {}.",
-    "a photo of the weird {}.",
-    "the cartoon {}.",
-    "art of the {}.",
-    "a drawing of the {}.",
-    "a photo of the large {}.",
-    "a black and white photo of a {}.",
-    "the plushie {}.",
-    "a dark photo of a {}.",
-    "itap of a {}.",
-    "graffiti of the {}.",
-    "a toy {}.",
-    "itap of my {}.",
-    "a photo of a cool {}.",
-    "a photo of a small {}.",
-    "a tattoo of the {}.",
 )
-

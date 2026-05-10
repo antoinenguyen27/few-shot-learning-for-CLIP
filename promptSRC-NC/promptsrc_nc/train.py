@@ -19,7 +19,7 @@ from .model import PromptSRCModel, build_openclip_bundle, trainable_parameters
 from .pair_dataset import build_pair_loader
 from .provenance import split_hash, validate_checkpoint_for_config
 from .neighbors import validate_neighbor_artifacts
-from .structured_logging import JsonlLogger, append_jsonl, runtime_record, write_json
+from .structured_logging import JsonlLogger, append_jsonl, emit_status, runtime_record, write_json
 
 
 def set_seed(seed: int) -> None:
@@ -68,12 +68,24 @@ def _build_scheduler(optimizer: Any, lr: float, epochs: int, warmup_epochs: int,
     def lr_lambda(epoch_index: int) -> float:
         if warmup_epochs > 0 and epoch_index < warmup_epochs:
             return max(warmup_cons_lr / lr, 1e-8)
-        denom = max(epochs - warmup_epochs, 1)
-        progress = (epoch_index - warmup_epochs + 1) / denom
-        progress = min(max(progress, 0.0), 1.0)
+        cosine_epoch = max(epoch_index - warmup_epochs, 0)
+        progress = min(max(cosine_epoch / max(epochs, 1), 0.0), 1.0)
         return 0.5 * (1.0 + math.cos(math.pi * progress))
 
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+
+
+def build_prompt_optimizer(parameters: list[Any], config: PromptSRCNCConfig, lr: float):
+    import torch
+
+    return torch.optim.SGD(
+        parameters,
+        lr=lr,
+        momentum=config.sgd_momentum,
+        weight_decay=config.weight_decay,
+        dampening=config.sgd_dampening,
+        nesterov=config.sgd_nesterov,
+    )
 
 
 def _state_weight(state: dict[str, Any], weight: float) -> dict[str, Any]:
@@ -104,7 +116,7 @@ def _state_add(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _grad_norm(parameters: list[Any]) -> float:
+def ensure_finite_gradients(parameters: list[Any]) -> float:
     import math
     import torch
 
@@ -112,7 +124,17 @@ def _grad_norm(parameters: list[Any]) -> float:
     for parameter in parameters:
         if parameter.grad is None:
             continue
+        if not torch.isfinite(parameter.grad).all():
+            raise RuntimeError(
+                "Non-finite prompt gradients detected; aborting instead of writing an invalid checkpoint. "
+                "Use precision='fp32' for PromptSRC-NC unless AMP has been explicitly validated for this setup."
+            )
         norm = parameter.grad.detach().data.norm(2).item()
+        if not math.isfinite(norm):
+            raise RuntimeError(
+                "Non-finite prompt gradients detected; aborting instead of writing an invalid checkpoint. "
+                "Use precision='fp32' for PromptSRC-NC unless AMP has been explicitly validated for this setup."
+            )
         total += norm * norm
     return float(math.sqrt(total))
 
@@ -172,6 +194,8 @@ def _save_checkpoint(
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     prompt_state = prompt_state or model.prompt_state_dict()
+    bundle = getattr(model, "bundle", None)
+    openclip_model_name = getattr(bundle, "model_name", None)
     payload = {
         "method": method,
         "stage": stage,
@@ -191,6 +215,7 @@ def _save_checkpoint(
         "metrics": metrics or {},
         "metadata": {
             "checkpoint_format": "prompt_only_openclip_weights_resolved_from_backbone_and_pretrained",
+            "openclip_model_name": openclip_model_name,
             **(metadata or {}),
         },
     }
@@ -243,12 +268,26 @@ def train_stage1(config: PromptSRCNCConfig, data_root: str | Path, run_root: str
             "seed": config.seed,
             "backbone": config.backbone,
         },
+        live=True,
+        live_events={"train_step", "epoch_end"},
     )
     runtime_logger = JsonlLogger(log_dir / "runtime.jsonl", base={"run_id": config.run_id, "function": "train_stage1"})
+    emit_status(
+        "stage_start",
+        run_id=config.run_id,
+        stage="stage1",
+        method="PromptSRC",
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        epochs=config.stage1_epochs,
+        batch_size=config.batch_size,
+    )
     model, loaders, split, _classnames, _bundle = build_model_and_loaders(config, data_root)
     device = model.device_name
     params = trainable_parameters(model)
-    optimizer = torch.optim.SGD(params, lr=config.stage1_lr, weight_decay=config.weight_decay)
+    optimizer = build_prompt_optimizer(params, config, lr=config.stage1_lr)
     scheduler = _build_scheduler(optimizer, config.stage1_lr, config.stage1_epochs, config.warmup_epochs, config.warmup_cons_lr)
     scaler = torch.amp.GradScaler("cuda", enabled=_use_amp(config, device))
     gpa_weights = gaussian_epoch_weights(config.stage1_epochs, config.gpa_mean, config.gpa_std)
@@ -272,12 +311,12 @@ def train_stage1(config: PromptSRCNCConfig, data_root: str | Path, run_root: str
             if scaler.is_enabled():
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)
-                grad_norm = _grad_norm(params)
+                grad_norm = ensure_finite_gradients(params)
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 loss.backward()
-                grad_norm = _grad_norm(params)
+                grad_norm = ensure_finite_gradients(params)
                 optimizer.step()
             global_step += 1
             batch_size = int(labels.shape[0])
@@ -392,6 +431,19 @@ def train_stage1(config: PromptSRCNCConfig, data_root: str | Path, run_root: str
             "val_top1": gpa_metrics["top1_accuracy"],
         },
     )
+    emit_status(
+        "stage_complete",
+        run_id=config.run_id,
+        stage="stage1",
+        method="PromptSRC",
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        checkpoint=str(gpa_path),
+        val_top1=gpa_metrics["top1_accuracy"],
+        elapsed_seconds=time.perf_counter() - start,
+    )
     return gpa_path
 
 
@@ -449,8 +501,26 @@ def train_stage2(
             "seed": config.seed,
             "backbone": config.backbone,
         },
+        live=True,
+        live_events={"train_step", "epoch_end"},
     )
     runtime_logger = JsonlLogger(log_dir / "runtime.jsonl", base={"run_id": config.run_id, "function": "train_stage2"})
+    emit_status(
+        "stage_start",
+        run_id=config.run_id,
+        stage="stage2",
+        method="PromptSRC-NC",
+        pair_mode=config.pair_mode,
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        epochs=config.stage2_epochs,
+        batch_size=config.batch_size,
+        pair_batch_size=config.pair_batch_size,
+        init_checkpoint=str(init_checkpoint),
+        neighbor_dir=str(pair_artifact_dir),
+    )
     model, loaders, split, _classnames, bundle = build_model_and_loaders(config, data_root)
     validate_checkpoint_for_config(
         checkpoint,
@@ -461,7 +531,19 @@ def train_stage2(
         expected_role="stage1_gpa",
         split=split,
     )
-    neighbor_metadata = validate_neighbor_artifacts(pair_artifact_dir, config, split)
+    _train_records, _val_records, _test_records, active_unlabeled_records, _split_check, _classnames_check = load_split_records(
+        data_root,
+        config.dataset,
+        config.shots,
+        config.seed,
+        config.protocol,
+    )
+    neighbor_metadata = validate_neighbor_artifacts(
+        pair_artifact_dir,
+        config,
+        split,
+        unlabeled_records=active_unlabeled_records[: config.max_unlabeled_images] if config.max_unlabeled_images else active_unlabeled_records,
+    )
     model.load_prompt_state_dict(checkpoint["prompt_state"])
     device = model.device_name
     pair_loader = build_pair_loader(
@@ -473,7 +555,7 @@ def train_stage2(
     )
     pair_iter = iter(pair_loader)
     params = trainable_parameters(model)
-    optimizer = torch.optim.SGD(params, lr=config.stage2_lr, weight_decay=config.weight_decay)
+    optimizer = build_prompt_optimizer(params, config, lr=config.stage2_lr)
     scheduler = _build_scheduler(optimizer, config.stage2_lr, config.stage2_epochs, 0, config.warmup_cons_lr)
     scaler = torch.amp.GradScaler("cuda", enabled=_use_amp(config, device))
     global_step = 0
@@ -506,12 +588,12 @@ def train_stage2(
             if scaler.is_enabled():
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)
-                grad_norm = _grad_norm(params)
+                grad_norm = ensure_finite_gradients(params)
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 loss.backward()
-                grad_norm = _grad_norm(params)
+                grad_norm = ensure_finite_gradients(params)
                 optimizer.step()
             global_step += 1
             batch_size = int(labels.shape[0])
@@ -611,6 +693,20 @@ def train_stage2(
             "val_top1": final_metrics["top1_accuracy"],
         },
     )
+    emit_status(
+        "stage_complete",
+        run_id=config.run_id,
+        stage="stage2",
+        method="PromptSRC-NC",
+        pair_mode=config.pair_mode,
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        checkpoint=str(final_path),
+        val_top1=final_metrics["top1_accuracy"],
+        elapsed_seconds=time.perf_counter() - start,
+    )
     return final_path
 
 
@@ -663,7 +759,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--lr", type=float, default=None)
     parser.add_argument("--stage1-lr", type=float, default=0.0025)
     parser.add_argument("--stage2-lr", type=float, default=0.00025)
-    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="amp")
+    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="fp32")
     parser.add_argument("--pair-mode", choices=["real", "shuffled"], default="real")
     parser.add_argument("--init-checkpoint", default="")
     parser.add_argument("--neighbor-dir", default="")

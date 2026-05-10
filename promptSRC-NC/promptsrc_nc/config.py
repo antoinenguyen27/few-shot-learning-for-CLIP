@@ -39,8 +39,12 @@ DISPLAY_NAMES = {
 
 KAGGLE_HANDLES = {
     "eurosat": "apollo2506/eurosat-dataset",
-    "oxford_flowers": "nunenuh/pytorch-challange-flower-dataset",
     "stanford_cars": "eduardo4jesus/stanford-cars-dataset",
+}
+
+
+OFFICIAL_DATASET_SOURCES = {
+    "oxford_flowers": "https://www.robots.ox.ac.uk/~vgg/data/flowers/102/",
 }
 
 
@@ -109,7 +113,10 @@ class PromptSRCNCConfig:
     stage2_epochs: int = 5
     stage1_lr: float = 0.0025
     stage2_lr: float = 0.00025
-    weight_decay: float = 0.0
+    weight_decay: float = 5e-4
+    sgd_momentum: float = 0.9
+    sgd_dampening: float = 0.0
+    sgd_nesterov: bool = False
     warmup_epochs: int = 1
     warmup_cons_lr: float = 1e-5
     n_ctx_text: int = 4
@@ -122,7 +129,7 @@ class PromptSRCNCConfig:
     logit_loss_weight: float = 1.0
     gpa_mean: float = 45.0
     gpa_std: float = 5.0
-    precision: str = "amp"
+    precision: str = "fp32"
     neighbor_k: int = 1
     fallback_k: int = 5
     min_pairs_fraction: float = 0.25

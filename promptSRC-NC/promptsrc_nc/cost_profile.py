@@ -7,19 +7,21 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .config import MODAL_GPU_PRICE_PER_SECOND, PromptSRCNCConfig, neighbor_dir, stage1_dir
+from .data import load_split_records
 from .losses import js_divergence_from_logits, promptsrc_loss
 from .pair_dataset import build_pair_loader
 from .neighbors import validate_neighbor_artifacts
 from .provenance import validate_checkpoint_for_config
-from .structured_logging import append_jsonl, runtime_record
+from .structured_logging import append_jsonl, emit_status, runtime_record
 from .train import (
     _device_type,
-    _grad_norm,
     _load_stage1_checkpoint,
     _move_batch,
     _use_amp,
+    build_prompt_optimizer,
     build_model_and_loaders,
     device_name,
+    ensure_finite_gradients,
     set_seed,
 )
 
@@ -37,6 +39,10 @@ def _gpu_name(default: str) -> str:
     except Exception:
         pass
     return default
+
+
+def _price_for_profile(requested_gpu_label: str, actual_gpu: str) -> float:
+    return MODAL_GPU_PRICE_PER_SECOND.get(actual_gpu, MODAL_GPU_PRICE_PER_SECOND.get(requested_gpu_label, 0.0))
 
 
 def _sync_if_cuda(device: str) -> None:
@@ -62,13 +68,41 @@ def profile_gpu_cost(
     if stage not in {"stage1", "stage2"}:
         raise ValueError("stage must be stage1 or stage2")
     set_seed(config.seed)
+    emit_status(
+        "gpu_profile_start",
+        run_id=config.run_id,
+        stage=stage,
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        requested_gpu_label=gpu_label,
+        warmup_steps=warmup_steps,
+        timed_steps=timed_steps,
+        batch_size=config.batch_size,
+        pair_batch_size=config.pair_batch_size if stage == "stage2" else None,
+    )
+    model_load_start = time.perf_counter()
     model, loaders, split, _classnames, bundle = build_model_and_loaders(config, data_root)
+    model_load_seconds = time.perf_counter() - model_load_start
     device = model.device_name
+    emit_status(
+        "gpu_profile_model_ready",
+        run_id=config.run_id,
+        stage=stage,
+        dataset=config.dataset,
+        shots=config.shots,
+        seed=config.seed,
+        backbone=config.backbone,
+        device=device,
+        openclip_model_name=bundle.model_name,
+        model_load_seconds=model_load_seconds,
+    )
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
     params = [parameter for parameter in model.parameters() if parameter.requires_grad]
     lr = config.stage1_lr if stage == "stage1" else config.stage2_lr
-    optimizer = torch.optim.SGD(params, lr=lr, weight_decay=config.weight_decay)
+    optimizer = build_prompt_optimizer(params, config, lr=lr)
     scaler = torch.amp.GradScaler("cuda", enabled=_use_amp(config, device))
     pair_iter = None
     if stage == "stage2":
@@ -92,7 +126,19 @@ def profile_gpu_cost(
         )
         model.load_prompt_state_dict(checkpoint["prompt_state"])
         pair_dir = Path(pair_artifact_dir or neighbor_dir(run_root, config.run_id, config.dataset, config.shots, config.seed))
-        validate_neighbor_artifacts(pair_dir, config, split)
+        _train_records, _val_records, _test_records, active_unlabeled_records, _split_check, _classnames_check = load_split_records(
+            data_root,
+            config.dataset,
+            config.shots,
+            config.seed,
+            config.protocol,
+        )
+        validate_neighbor_artifacts(
+            pair_dir,
+            config,
+            split,
+            unlabeled_records=active_unlabeled_records[: config.max_unlabeled_images] if config.max_unlabeled_images else active_unlabeled_records,
+        )
         pair_loader = build_pair_loader(pair_dir, config.pair_mode, bundle.train_preprocess, config.pair_batch_size, config.num_workers)
         pair_iter = iter(pair_loader)
 
@@ -135,12 +181,12 @@ def profile_gpu_cost(
         if scaler.is_enabled():
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
-            _grad_norm(params)
+            ensure_finite_gradients(params)
             scaler.step(optimizer)
             scaler.update()
         else:
             loss.backward()
-            _grad_norm(params)
+            ensure_finite_gradients(params)
             optimizer.step()
         _sync_if_cuda(device)
         if step > warmup_steps:
@@ -148,13 +194,24 @@ def profile_gpu_cost(
             timed_elapsed += elapsed
             timed_examples += int(labels.shape[0])
             completed_timed += 1
+        elif step == warmup_steps:
+            emit_status(
+                "gpu_profile_warmup_complete",
+                run_id=config.run_id,
+                stage=stage,
+                dataset=config.dataset,
+                shots=config.shots,
+                seed=config.seed,
+                warmup_steps=warmup_steps,
+            )
     actual_gpu = _gpu_name(gpu_label)
-    price = MODAL_GPU_PRICE_PER_SECOND.get(gpu_label, MODAL_GPU_PRICE_PER_SECOND.get(actual_gpu, 0.0))
+    price = _price_for_profile(gpu_label, actual_gpu)
     seconds_per_step = timed_elapsed / max(completed_timed, 1)
     record = {
         "event": "gpu_profile",
         "run_id": config.run_id,
-        "gpu": gpu_label,
+        "gpu": actual_gpu,
+        "requested_gpu_label": gpu_label,
         "actual_gpu_name": actual_gpu,
         "modal_price_per_second": price,
         "dataset": config.dataset,
@@ -166,6 +223,7 @@ def profile_gpu_cost(
         "pair_batch_size": config.pair_batch_size if stage == "stage2" else None,
         "warmup_steps": warmup_steps,
         "timed_steps": completed_timed,
+        "model_load_seconds": model_load_seconds,
         "seconds_total": timed_elapsed,
         "seconds_per_step": seconds_per_step,
         "images_per_second": timed_examples / max(timed_elapsed, 1e-8),
@@ -173,6 +231,7 @@ def profile_gpu_cost(
         **runtime_record(),
     }
     append_jsonl(Path(run_root) / config.run_id / "logs" / "cost_profile.jsonl", record)
+    emit_status("gpu_profile_complete", **{key: value for key, value in record.items() if key != "event"})
     return record
 
 
@@ -215,7 +274,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--eval-batch-size", type=int, default=100)
     parser.add_argument("--pair-batch-size", type=int, default=8)
     parser.add_argument("--num-workers", type=int, default=8)
-    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="amp")
+    parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="fp32")
     parser.add_argument("--pair-mode", choices=["real", "shuffled"], default="real")
     parser.add_argument("--init-checkpoint", default="")
     parser.add_argument("--neighbor-dir", default="")

@@ -26,6 +26,13 @@ def _openclip_pretrained_arg(pretrained: str) -> str | None:
     return tag
 
 
+def openclip_model_name_for_weights(backbone: str, pretrained: str) -> str:
+    model_name = canonical_backbone(backbone)
+    if str(pretrained).strip().lower() == "openai" and model_name in {"ViT-B-16", "ViT-B-32"}:
+        return f"{model_name}-quickgelu"
+    return model_name
+
+
 @dataclass(frozen=True)
 class OpenCLIPBundle:
     model: Any
@@ -42,12 +49,12 @@ def build_openclip_bundle(
     backbone: str,
     pretrained: str = "openai",
     device: str = "cuda",
-    precision: str = "amp",
+    precision: str = "fp32",
 ) -> OpenCLIPBundle:
     import open_clip
     import torch
 
-    model_name = canonical_backbone(backbone)
+    model_name = openclip_model_name_for_weights(backbone, pretrained)
     if device == "cuda" and not torch.cuda.is_available():
         device = "cpu"
     # OpenCLIP's fp16 construction is useful on GPU; CPU falls back to fp32.

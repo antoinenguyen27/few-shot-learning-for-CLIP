@@ -9,7 +9,7 @@ from statistics import mean, stdev
 from typing import Any, Iterable, Sequence
 
 from .config import results_dir
-from .structured_logging import read_jsonl, write_json
+from .structured_logging import read_json, read_jsonl, write_json
 
 
 def _write_csv(path: str | Path, rows: Iterable[dict[str, Any]]) -> Path:
@@ -45,24 +45,70 @@ def _mean_std(values: list[float]) -> tuple[float | None, float | None]:
     return float(mean(values)), float(stdev(values))
 
 
+def _safe_read_jsonl(path: Path, warnings: list[str]) -> list[dict[str, Any]]:
+    try:
+        return read_jsonl(path)
+    except ValueError as exc:
+        warnings.append(f"Skipped malformed JSONL {path}: {exc}")
+        return []
+
+
+def _read_json_artifacts(root: Path, subdir: str, event: str, warnings: list[str]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for path in sorted((root / subdir).glob("**/*.json")):
+        if path.name == "config.json":
+            continue
+        try:
+            row = read_json(path)
+        except Exception as exc:
+            warnings.append(f"Skipped malformed JSON artifact {path}: {exc}")
+            continue
+        if row.get("event") == event:
+            rows.append(row)
+    return rows
+
+
+def _dedupe_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        key = json.dumps(row, sort_keys=True, default=str)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    return deduped
+
+
 def aggregate_run(run_root: str | Path, run_id: str) -> dict[str, Any]:
     root = Path(run_root) / run_id
     out_dir = results_dir(run_root, run_id)
     out_dir.mkdir(parents=True, exist_ok=True)
-    eval_rows = read_jsonl(root / "logs" / "eval_summary.jsonl")
-    diag_rows = read_jsonl(root / "logs" / "diagnostics.jsonl")
+    aggregate_warnings: list[str] = []
+    eval_rows = _dedupe_rows(
+        [
+            *_safe_read_jsonl(root / "logs" / "eval_summary.jsonl", aggregate_warnings),
+            *_read_json_artifacts(root, "eval", "eval_summary", aggregate_warnings),
+        ]
+    )
+    diag_rows = _dedupe_rows(
+        [
+            *_safe_read_jsonl(root / "logs" / "diagnostics.jsonl", aggregate_warnings),
+            *_read_json_artifacts(root, "diagnostics", "neighbor_diagnostics", aggregate_warnings),
+        ]
+    )
     runtime_rows = []
-    runtime_rows.extend(read_jsonl(root / "logs" / "train_stage1.jsonl"))
-    runtime_rows.extend(read_jsonl(root / "logs" / "train_stage2.jsonl"))
+    runtime_rows.extend(_safe_read_jsonl(root / "logs" / "train_stage1.jsonl", aggregate_warnings))
+    runtime_rows.extend(_safe_read_jsonl(root / "logs" / "train_stage2.jsonl", aggregate_warnings))
     for path in sorted(root.glob("stage1/**/logs/runtime.jsonl")):
-        for row in read_jsonl(path):
+        for row in _safe_read_jsonl(path, aggregate_warnings):
             runtime_rows.append({"runtime_log": str(path), **row})
     for path in sorted(root.glob("stage2/**/logs/runtime.jsonl")):
-        for row in read_jsonl(path):
+        for row in _safe_read_jsonl(path, aggregate_warnings):
             runtime_rows.append({"runtime_log": str(path), **row})
-    cost_rows = read_jsonl(root / "logs" / "cost_profile.jsonl")
+    cost_rows = _safe_read_jsonl(root / "logs" / "cost_profile.jsonl", aggregate_warnings)
 
-    run_index: dict[tuple[str, int, int, str, str, str], dict[str, Any]] = {}
+    run_index: dict[tuple[str, int, int, str, str, str, str, str, str, str, str], dict[str, Any]] = {}
     for row in eval_rows:
         split = row.get("split")
         if split not in {"val", "test"}:
@@ -73,8 +119,13 @@ def aggregate_run(run_root: str | Path, run_id: str) -> dict[str, Any]:
             int(row.get("shots")),
             int(row.get("seed")),
             str(row.get("backbone")),
+            str(row.get("protocol", "")),
             str(row.get("pair_mode")),
             variant,
+            str(row.get("checkpoint")),
+            str(row.get("checkpoint_role")),
+            str(row.get("split_hash")),
+            str(row.get("unlabeled_pool_variant", "")),
         )
         existing = run_index.setdefault(
             key,
@@ -86,7 +137,12 @@ def aggregate_run(run_root: str | Path, run_id: str) -> dict[str, Any]:
                 "shots": row.get("shots"),
                 "seed": row.get("seed"),
                 "backbone": row.get("backbone"),
+                "protocol": row.get("protocol"),
                 "checkpoint": row.get("checkpoint"),
+                "checkpoint_role": row.get("checkpoint_role"),
+                "split_hash": row.get("split_hash"),
+                "unlabeled_pool_variant": row.get("unlabeled_pool_variant"),
+                "shuffle_weak_shuffled_control": row.get("shuffle_weak_shuffled_control"),
                 "val_top1": None,
                 "val_macro": None,
                 "test_top1": None,
@@ -196,6 +252,7 @@ def aggregate_run(run_root: str | Path, run_id: str) -> dict[str, Any]:
             "mean_confidence": row.get("mean_confidence"),
             "mean_real_cosine": row.get("mean_real_cosine"),
             "mean_shuffled_cosine": row.get("mean_shuffled_cosine"),
+            "shuffle_weak_shuffled_control": row.get("shuffle_weak_shuffled_control"),
         }
         for row in diag_rows
     ]
@@ -204,12 +261,14 @@ def aggregate_run(run_root: str | Path, run_id: str) -> dict[str, Any]:
     _write_csv(out_dir / "diagnostics_summary.csv", diagnostics_summary)
     _write_csv(out_dir / "runtime_summary.csv", runtime_rows)
     _write_csv(out_dir / "cost_profile_summary.csv", cost_rows)
+    write_json(out_dir / "aggregate_warnings.json", {"warnings": aggregate_warnings})
     return {
         "run_id": run_id,
         "results_dir": str(out_dir),
         "num_eval_rows": len(eval_rows),
         "num_test_run_rows": len(run_rows),
         "num_diagnostics_rows": len(diag_rows),
+        "warnings": aggregate_warnings,
         "summary_rows": summary_rows,
     }
 

@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import os
 import socket
+import sys
 import time
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, TextIO
 
 
 def utc_now() -> str:
@@ -50,6 +51,21 @@ def append_jsonl(path: str | Path, payload: Mapping[str, Any]) -> Path:
     return output
 
 
+def emit_status(event: str, *, stream: TextIO | None = None, **payload: Any) -> dict[str, Any]:
+    """Emit one structured status line for live Modal logs."""
+
+    record = {
+        "event": event,
+        "timestamp": utc_now(),
+        **payload,
+    }
+    output = stream or sys.stdout
+    output.write(json.dumps(record, sort_keys=True, default=_json_default))
+    output.write("\n")
+    output.flush()
+    return json.loads(json.dumps(record, sort_keys=True, default=_json_default))
+
+
 def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     file_path = Path(path)
@@ -68,10 +84,21 @@ def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
 
 
 class JsonlLogger:
-    def __init__(self, path: str | Path, base: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        base: Mapping[str, Any] | None = None,
+        *,
+        live: bool = False,
+        live_events: set[str] | None = None,
+        stream: TextIO | None = None,
+    ) -> None:
         self.path = Path(path)
         self.base = dict(base or {})
         self.start = time.perf_counter()
+        self.live = live
+        self.live_events = set(live_events or ())
+        self.stream = stream
 
     def log(self, event: str, **payload: Any) -> None:
         record = {
@@ -82,6 +109,8 @@ class JsonlLogger:
             **payload,
         }
         append_jsonl(self.path, record)
+        if self.live and (not self.live_events or event in self.live_events):
+            emit_status(event, stream=self.stream, **{key: value for key, value in record.items() if key != "event"})
 
 
 def runtime_record() -> dict[str, Any]:
@@ -121,4 +150,3 @@ def runtime_record() -> dict[str, Any]:
     except Exception:
         pass
     return record
-

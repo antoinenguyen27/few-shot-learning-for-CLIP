@@ -56,8 +56,10 @@ The official repository is based on Dassl.pytorch. For this project, treat Dassl
 Local development should use `uv`. Do not use conda for this project.
 
 ```bash
-uv sync
-uv run python -m compileall promptSRC-NC
+cd promptSRC-NC
+uv sync --extra dev
+uv run python -m compileall promptsrc_nc modal_app.py
+uv run pytest -q
 uv run modal --help
 ```
 
@@ -191,12 +193,12 @@ The project uses three datasets:
 
 The standalone implementation must provide its own data preprocessing code under `promptSRC-NC/`. It may reuse ideas from the archived `method_reproductions/docs/data.md`, but it should not depend on scripts outside `promptSRC-NC/` for cloud runs.
 
-Use these KaggleHub handles as the default source mirrors, matching the earlier reproduction scaffold:
+Use these default data sources:
 
 ```text
-EuroSAT:       apollo2506/eurosat-dataset
-Flowers102:    nunenuh/pytorch-challange-flower-dataset
-Stanford Cars: eduardo4jesus/stanford-cars-dataset
+Flowers102:    official Oxford VGG source, https://www.robots.ox.ac.uk/~vgg/data/flowers/102/
+EuroSAT:       KaggleHub mirror, apollo2506/eurosat-dataset
+Stanford Cars: KaggleHub mirror, eduardo4jesus/stanford-cars-dataset
 ```
 
 The `prepare_data` Modal function should download or verify raw sources, build normalized manifests, write deterministic split files, and emit a data-preparation log record for every dataset. It should be idempotent: if the Volume already contains matching source metadata and split files, it should verify and return without redownloading.
@@ -217,7 +219,18 @@ $DATA/oxford_flowers/
 |-- split_zhou_OxfordFlowers.json
 ```
 
-Kaggle mirror used by the reproduction scaffold:
+Official VGG fallback when the PromptSRC/Zhou split file is not present:
+
+```text
+$DATA/oxford_flowers/
+|-- cat_to_name.json
+|-- imagelabels.mat
+|-- jpg/
+```
+
+The implementation should use `split_zhou_OxfordFlowers.json` when available, otherwise use the official VGG labels to create the PromptSRC-compatible 50/20/30 train/validation/test source split. Do not use the official VGG `setid.mat` split for the primary PromptSRC-NC few-shot protocol because its training partition has only 10 images per class and cannot support 16-shot runs. A flat Kaggle challenge-style `dataset/test/*.jpg` folder is unlabeled and must not be used as the evaluation test split.
+
+Class-labeled Kaggle mirror layout, supported only if already provided manually:
 
 ```text
 dataset/
@@ -262,15 +275,17 @@ $DATA/stanford_cars/
 |-- split_zhou_StanfordCars.json
 ```
 
-Kaggle mirror:
+Kaggle mirror plus official labeled test annotations:
 
 ```text
-cars_train/**/*.jpg
-cars_test/**/*.jpg
-devkit/cars_meta.mat
-devkit/cars_train_annos.mat
+cars_train/**/*.jpg or cars_train/cars_train/*.jpg
+cars_test/**/*.jpg or cars_test/cars_test/*.jpg
+devkit/cars_meta.mat or car_devkit/devkit/cars_meta.mat
+devkit/cars_train_annos.mat or car_devkit/devkit/cars_train_annos.mat
 cars_test_annos_withlabels.mat
 ```
+
+Some Kaggle mirrors include only `cars_test_annos.mat`, whose annotations do not contain class labels. That file is not sufficient for evaluation; data preparation must download or verify `cars_test_annos_withlabels.mat` from the official Stanford Cars source, with a checksum-verified public mirror fallback if the Stanford host is temporarily unavailable.
 
 ### 3.2 Dataset split behavior in PromptSRC
 
@@ -576,6 +591,8 @@ INPUT:
 OPTIM:
   NAME: "sgd"
   LR: 0.0025
+  MOMENTUM: 0.9
+  WEIGHT_DECAY: 0.0005
   MAX_EPOCH: 50
   LR_SCHEDULER: "cosine"
   WARMUP_EPOCH: 1
@@ -617,8 +634,9 @@ For the standalone PyTorch/OpenCLIP implementation:
 
 - default backbone should remain `ViT-B/16` for the cleanest comparison;
 - keep labeled batch size at `4` unless a smoke or profile run shows it cannot fit;
-- use mixed precision on GPU;
+- use fp32 prompt optimization by default; AMP is allowed only as an explicitly validated performance variant because non-finite prompt gradients or skipped optimizer steps invalidate checkpoints;
 - keep image size and normalization equivalent to CLIP/OpenCLIP's pretrained preprocessing;
+- when `pretrained=openai`, resolve OpenCLIP ViT model names to the matching `*-quickgelu` variant and record that effective model name in provenance;
 - keep PromptSRC's prompt counts, prompt depths, loss weights, optimizer, LR, epoch count, and GPA settings unless a documented compatibility issue is found.
 - implement both textual and visual prompting behavior locally. Do not silently downgrade to text-only prompt tuning; if OpenCLIP internals require a wrapper for visual prompt tokens, build that wrapper inside `promptSRC-NC/` and document any unsupported PromptSRC component.
 
@@ -732,7 +750,7 @@ Minimum remote smoke test:
 5. build the OpenCLIP model and transforms;
 6. run one Stage 1 forward/backward/optimizer step;
 7. build a tiny neighbor subset from at most 256 unlabeled images;
-8. run one Stage 2 real-pair step and one shuffled-pair step;
+8. run one Stage 2 real-pair step and one shuffled-pair step with NC active;
 9. run one evaluation batch;
 10. write a smoke-test JSON artifact under `/vol/runs/{run_id}/smoke/`.
 
@@ -1490,6 +1508,8 @@ Base it on the PromptSRC few-shot config, with changes:
 OPTIM:
   NAME: "sgd"
   LR: 0.00025
+  MOMENTUM: 0.9
+  WEIGHT_DECAY: 0.0005
   MAX_EPOCH: 5
   LR_SCHEDULER: "cosine"
   WARMUP_EPOCH: 0

@@ -31,7 +31,9 @@ Official PromptSRC modifies the OpenAI CLIP package directly. This implementatio
 - Stage 2 initialized from the Stage 1 GPA checkpoint;
 - Stage 2 keeps PromptSRC losses active and adds only symmetric JS neighbor consistency.
 
-Checkpoints intentionally store prompt tensors only, not frozen OpenCLIP weights. The backbone, pretrained source, config, and checkpoint provenance are logged so the full model can be reconstructed.
+For OpenAI-pretrained ViT backbones, the effective OpenCLIP model uses the matching `*-quickgelu` variant, for example requested `ViT-B-16` plus `pretrained=openai` resolves to `ViT-B-16-quickgelu`. This matches OpenAI CLIP's activation and avoids silently evaluating PromptSRC on a mismatched tower. Checkpoints intentionally store prompt tensors only, not frozen OpenCLIP weights. The requested backbone, effective OpenCLIP model name, pretrained source, config, and checkpoint provenance are logged so the full model can be reconstructed.
+
+Prompt optimization defaults to `fp32`. AMP remains an explicit option for profiling only after it has been validated for the selected GPU/backbone; non-finite prompt gradients fail closed instead of writing checkpoints.
 
 ## Local Setup
 
@@ -39,15 +41,16 @@ Use `uv`, not conda:
 
 ```bash
 cd promptSRC-NC
-uv sync
+uv sync --extra dev
 uv run python -m compileall promptsrc_nc modal_app.py
+uv run pytest -q
 ```
 
 Local CLI commands should be run from `promptSRC-NC/`. Modal commands below are run from the repository root because `modal_app.py` builds the image from `promptSRC-NC`.
 
 ## Data Preparation
 
-Modal data prep downloads or verifies the documented Kaggle mirrors, builds normalized manifests, and writes few-shot splits. It supports Zhou/PromptSRC layouts and the Kaggle layouts in the spec.
+Modal data prep downloads or verifies the documented data sources, builds normalized manifests, and writes few-shot splits. Flowers102 uses the official Oxford VGG images and labels, then creates the PromptSRC-compatible 50/20/30 source split when a Zhou split file is not present. EuroSAT and Stanford Cars use the documented Kaggle mirrors, with Stanford Cars augmented by checksum-verified labeled test annotations when the mirror only provides unlabeled test annotations. Existing unlabeled Kaggle-style Flowers test folders are rejected instead of being used as evaluation data.
 
 ```bash
 uv run --project promptSRC-NC modal run promptSRC-NC/modal_app.py::prepare_data \
@@ -159,7 +162,7 @@ Outputs:
 ```
 
 Real pairs use mutual top-1 neighbors, with fixed mutual top-5 fallback only if too few pairs are produced. Shuffled pairs use degree-preserving double-edge swaps.
-Neighbor metadata records the full split hash, effective unlabeled ID hash, OpenCLIP backbone/pretrained source, and shuffled-control audit fields. Stage 2, diagnostics, and stage-2 profiling fail closed if these artifacts do not match the active config and split.
+Neighbor metadata records the full split hash, effective unlabeled ID hash, requested OpenCLIP backbone, effective OpenCLIP model name, pretrained source, and shuffled-control audit fields. Stage 2, diagnostics, and stage-2 profiling fail closed if these artifacts do not match the active config and split.
 
 ## Stage 1: PromptSRC Baseline
 
@@ -200,6 +203,8 @@ Stage 2 uses a global fixed configuration:
 ```text
 stage2_epochs = 5
 stage2_lr = 0.00025
+sgd_momentum = 0.9
+weight_decay = 0.0005
 lambda_nc_max = 1.0
 lambda_nc_warmup_epochs = 1
 neighbor_k = 1
