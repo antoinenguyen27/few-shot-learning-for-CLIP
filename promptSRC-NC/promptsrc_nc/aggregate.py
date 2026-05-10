@@ -62,23 +62,22 @@ def aggregate_run(run_root: str | Path, run_id: str) -> dict[str, Any]:
             runtime_rows.append({"runtime_log": str(path), **row})
     cost_rows = read_jsonl(root / "logs" / "cost_profile.jsonl")
 
-    run_rows = []
+    run_index: dict[tuple[str, int, int, str, str, str], dict[str, Any]] = {}
     for row in eval_rows:
-        if row.get("split") != "test":
+        split = row.get("split")
+        if split not in {"val", "test"}:
             continue
         variant = _variant(row)
-        diagnostic = next(
-            (
-                diag
-                for diag in diag_rows
-                if diag.get("dataset") == row.get("dataset")
-                and diag.get("shots") == row.get("shots")
-                and diag.get("seed") == row.get("seed")
-                and _variant(diag) == variant
-            ),
-            {},
+        key = (
+            str(row.get("dataset")),
+            int(row.get("shots")),
+            int(row.get("seed")),
+            str(row.get("backbone")),
+            str(row.get("pair_mode")),
+            variant,
         )
-        run_rows.append(
+        existing = run_index.setdefault(
+            key,
             {
                 "run_id": run_id,
                 "method": variant,
@@ -88,14 +87,37 @@ def aggregate_run(run_root: str | Path, run_id: str) -> dict[str, Any]:
                 "seed": row.get("seed"),
                 "backbone": row.get("backbone"),
                 "checkpoint": row.get("checkpoint"),
-                "test_top1": row.get("top1_accuracy"),
-                "test_macro": row.get("macro_accuracy"),
-                "edge_disagreement": diagnostic.get("edge_disagreement"),
-                "mean_js": diagnostic.get("mean_js"),
-                "mean_entropy": diagnostic.get("mean_entropy"),
-                "mean_confidence": diagnostic.get("mean_confidence"),
+                "val_top1": None,
+                "val_macro": None,
+                "test_top1": None,
+                "test_macro": None,
+                "edge_disagreement": None,
+                "mean_js": None,
+                "mean_entropy": None,
+                "mean_confidence": None,
             }
         )
+        existing["checkpoint"] = row.get("checkpoint") or existing.get("checkpoint")
+        existing[f"{split}_top1"] = row.get("top1_accuracy")
+        existing[f"{split}_macro"] = row.get("macro_accuracy")
+
+    run_rows = list(run_index.values())
+    for row in run_rows:
+        diagnostic = next(
+            (
+                diag
+                for diag in diag_rows
+                if diag.get("dataset") == row.get("dataset")
+                and diag.get("shots") == row.get("shots")
+                and diag.get("seed") == row.get("seed")
+                and _variant(diag) == row.get("method")
+            ),
+            {},
+        )
+        row["edge_disagreement"] = diagnostic.get("edge_disagreement")
+        row["mean_js"] = diagnostic.get("mean_js")
+        row["mean_entropy"] = diagnostic.get("mean_entropy")
+        row["mean_confidence"] = diagnostic.get("mean_confidence")
     with (out_dir / "runs.jsonl").open("w", encoding="utf-8") as handle:
         for row in run_rows:
             handle.write(json.dumps(row, sort_keys=True))
@@ -105,6 +127,8 @@ def aggregate_run(run_root: str | Path, run_id: str) -> dict[str, Any]:
     grouped: dict[tuple[str, int], dict[str, list[float]]] = {}
     per_seed: dict[tuple[str, int, int], dict[str, float]] = {}
     for row in run_rows:
+        if row.get("test_top1") is None:
+            continue
         key = (str(row["dataset"]), int(row["shots"]))
         variant = str(row["method"])
         grouped.setdefault(key, {}).setdefault(variant, []).append(float(row["test_top1"]))

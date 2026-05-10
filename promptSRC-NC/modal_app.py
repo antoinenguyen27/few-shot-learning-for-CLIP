@@ -150,6 +150,7 @@ def profile_gpu_cost(
     timed_steps: int = 100,
     pair_mode: str = "real",
     pair_batch_size: int = 8,
+    max_unlabeled_images: int | None = None,
 ):
     from promptsrc_nc.cost_profile import profile_gpu_cost as run_profile
 
@@ -165,6 +166,7 @@ def profile_gpu_cost(
         pretrained=pretrained,
         pair_mode=pair_mode,
         pair_batch_size=pair_batch_size,
+        max_unlabeled_images=max_unlabeled_images,
     )
     result = run_profile(
         config,
@@ -188,13 +190,22 @@ def build_neighbors(
     seed: int = 1,
     backbone: str = "ViT-B-16",
     pretrained: str = "openai",
+    max_unlabeled_images: int | None = None,
 ):
     from promptsrc_nc.neighbors import build_neighbor_artifacts
 
     data_vol.reload()
     weights_vol.reload()
     runs_vol.reload()
-    config = _config(run_id=run_id, dataset=dataset, shots=shots, seed=seed, backbone=backbone, pretrained=pretrained)
+    config = _config(
+        run_id=run_id,
+        dataset=dataset,
+        shots=shots,
+        seed=seed,
+        backbone=backbone,
+        pretrained=pretrained,
+        max_unlabeled_images=max_unlabeled_images,
+    )
     result = str(build_neighbor_artifacts(config, DATA_ROOT, RUN_ROOT, log_path=Path(RUN_ROOT) / run_id / "logs" / "neighbors.jsonl"))
     weights_vol.commit()
     runs_vol.commit()
@@ -232,6 +243,7 @@ def train_stage2(
     pretrained: str = "openai",
     pair_mode: str = "real",
     pair_batch_size: int = 8,
+    max_unlabeled_images: int | None = None,
 ):
     from promptsrc_nc.train import train_stage2 as run_train_stage2
 
@@ -247,6 +259,7 @@ def train_stage2(
         pretrained=pretrained,
         pair_mode=pair_mode,
         pair_batch_size=pair_batch_size,
+        max_unlabeled_images=max_unlabeled_images,
     )
     result = str(run_train_stage2(config, DATA_ROOT, RUN_ROOT))
     weights_vol.commit()
@@ -287,6 +300,7 @@ def diagnostics(
     backbone: str = "ViT-B-16",
     pretrained: str = "openai",
     checkpoint_ref: str = "stage1",
+    max_unlabeled_images: int | None = None,
 ):
     from promptsrc_nc.diagnostics import run_diagnostics
     from promptsrc_nc.eval import checkpoint_for_ref
@@ -294,7 +308,15 @@ def diagnostics(
     data_vol.reload()
     weights_vol.reload()
     runs_vol.reload()
-    config = _config(run_id=run_id, dataset=dataset, shots=shots, seed=seed, backbone=backbone, pretrained=pretrained)
+    config = _config(
+        run_id=run_id,
+        dataset=dataset,
+        shots=shots,
+        seed=seed,
+        backbone=backbone,
+        pretrained=pretrained,
+        max_unlabeled_images=max_unlabeled_images,
+    )
     checkpoint = checkpoint_for_ref(RUN_ROOT, run_id, config.dataset, shots, seed, config.backbone, checkpoint_ref)
     result = run_diagnostics(config, DATA_ROOT, RUN_ROOT, checkpoint)
     weights_vol.commit()

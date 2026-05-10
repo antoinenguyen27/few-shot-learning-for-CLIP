@@ -19,6 +19,13 @@ def _normalize(features: Any):
     return features / features.norm(dim=-1, keepdim=True).clamp_min(1e-12)
 
 
+def _openclip_pretrained_arg(pretrained: str) -> str | None:
+    tag = str(pretrained).strip()
+    if tag.lower() in {"", "none", "null", "random"}:
+        return None
+    return tag
+
+
 @dataclass(frozen=True)
 class OpenCLIPBundle:
     model: Any
@@ -47,10 +54,11 @@ def build_openclip_bundle(
     openclip_precision = "fp16" if precision == "fp16" and device.startswith("cuda") else "fp32"
     model, train_preprocess, eval_preprocess = open_clip.create_model_and_transforms(
         model_name,
-        pretrained=pretrained,
+        pretrained=_openclip_pretrained_arg(pretrained),
         device=device,
         precision=openclip_precision,
     )
+    validate_openclip_compatibility(model)
     model.eval()
     tokenizer = open_clip.get_tokenizer(model_name)
     return OpenCLIPBundle(
@@ -63,6 +71,35 @@ def build_openclip_bundle(
         device=device,
         precision=precision,
     )
+
+
+def validate_openclip_compatibility(model: Any) -> None:
+    """Fail early if OpenCLIP internals no longer match the prompt wrappers."""
+
+    required_model_attrs = ("token_embedding", "transformer", "positional_embedding", "ln_final", "visual")
+    missing = [name for name in required_model_attrs if not hasattr(model, name)]
+    if missing:
+        raise RuntimeError(f"OpenCLIP model is missing required attributes for PromptSRC-NC: {missing}")
+    for name in ("encode_image", "encode_text"):
+        if not callable(getattr(model, name, None)):
+            raise RuntimeError(f"OpenCLIP model must expose callable {name}()")
+
+    text_transformer = model.transformer
+    if getattr(text_transformer, "batch_first", None) is not True:
+        raise RuntimeError("PromptSRC-NC OpenCLIP text wrapper requires a batch_first text transformer")
+    if not hasattr(text_transformer, "resblocks"):
+        raise RuntimeError("OpenCLIP text transformer must expose resblocks")
+
+    visual = model.visual
+    required_visual_attrs = ("conv1", "class_embedding", "positional_embedding", "ln_pre", "transformer", "ln_post")
+    missing_visual = [name for name in required_visual_attrs if not hasattr(visual, name)]
+    if missing_visual:
+        raise RuntimeError(f"OpenCLIP visual tower is missing required ViT attributes: {missing_visual}")
+    visual_transformer = visual.transformer
+    if getattr(visual_transformer, "batch_first", None) is not True:
+        raise RuntimeError("PromptSRC-NC OpenCLIP visual wrapper requires a batch_first visual transformer")
+    if not hasattr(visual_transformer, "resblocks"):
+        raise RuntimeError("OpenCLIP visual transformer must expose resblocks")
 
 
 class TextPromptLearner:

@@ -9,6 +9,8 @@ from typing import Any, Sequence
 from .config import MODAL_GPU_PRICE_PER_SECOND, PromptSRCNCConfig, neighbor_dir, stage1_dir
 from .losses import js_divergence_from_logits, promptsrc_loss
 from .pair_dataset import build_pair_loader
+from .neighbors import validate_neighbor_artifacts
+from .provenance import validate_checkpoint_for_config
 from .structured_logging import append_jsonl, runtime_record
 from .train import (
     _device_type,
@@ -60,7 +62,7 @@ def profile_gpu_cost(
     if stage not in {"stage1", "stage2"}:
         raise ValueError("stage must be stage1 or stage2")
     set_seed(config.seed)
-    model, loaders, _split, _classnames, bundle = build_model_and_loaders(config, data_root)
+    model, loaders, split, _classnames, bundle = build_model_and_loaders(config, data_root)
     device = model.device_name
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
@@ -79,8 +81,18 @@ def profile_gpu_cost(
             config.backbone,
         ) / "checkpoints" / "gpa.pt"
         checkpoint = _load_stage1_checkpoint(init_checkpoint, config)
+        validate_checkpoint_for_config(
+            checkpoint,
+            config,
+            artifact=f"Stage 1 checkpoint {init_checkpoint}",
+            expected_method="PromptSRC",
+            expected_stage="stage1",
+            expected_role="stage1_gpa",
+            split=split,
+        )
         model.load_prompt_state_dict(checkpoint["prompt_state"])
         pair_dir = Path(pair_artifact_dir or neighbor_dir(run_root, config.run_id, config.dataset, config.shots, config.seed))
+        validate_neighbor_artifacts(pair_dir, config, split)
         pair_loader = build_pair_loader(pair_dir, config.pair_mode, bundle.train_preprocess, config.pair_batch_size, config.num_workers)
         pair_iter = iter(pair_loader)
 
@@ -177,6 +189,7 @@ def config_from_args(args: Any) -> PromptSRCNCConfig:
         num_workers=args.num_workers,
         precision=args.precision,
         pair_mode=args.pair_mode,
+        max_unlabeled_images=args.max_unlabeled_images,
         run_id=args.run_id,
     )
 
@@ -206,6 +219,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--pair-mode", choices=["real", "shuffled"], default="real")
     parser.add_argument("--init-checkpoint", default="")
     parser.add_argument("--neighbor-dir", default="")
+    parser.add_argument("--max-unlabeled-images", type=int, default=None)
     args = parser.parse_args(argv)
     print(
         json.dumps(

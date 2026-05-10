@@ -8,6 +8,7 @@ from typing import Any, Sequence
 from .config import PromptSRCNCConfig, stage1_dir, stage2_dir
 from .data import build_data_loaders, load_split_records
 from .model import PromptSRCModel, build_openclip_bundle
+from .provenance import checkpoint_provenance, validate_checkpoint_for_config
 from .structured_logging import append_jsonl, write_json
 from .train import device_name, evaluate_loader
 
@@ -41,6 +42,7 @@ def load_model_for_checkpoint(config: PromptSRCNCConfig, data_root: str | Path, 
         config.seed,
         config.protocol,
     )
+    validate_checkpoint_for_config(checkpoint, config, artifact=f"checkpoint {checkpoint_path}", split=_split)
     bundle = build_openclip_bundle(config.backbone, config.pretrained, device=device_name(), precision=config.precision)
     loaders = build_data_loaders(
         train_records,
@@ -88,6 +90,7 @@ def evaluate_checkpoint(
         "macro_accuracy": metrics["macro_accuracy"],
         "num_examples": metrics["num_examples"],
         "checkpoint": str(checkpoint_path),
+        "checkpoint_provenance": checkpoint_provenance(checkpoint),
     }
     output_dir = Path(run_root) / config.run_id / "eval" / config.dataset / f"shot{config.shots}" / f"seed{config.seed}"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -150,4 +153,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

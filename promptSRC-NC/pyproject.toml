@@ -12,7 +12,7 @@ dependencies = [
   "modal>=1.1.0",
   "torch>=2.2",
   "torchvision>=0.17",
-  "open_clip_torch>=2.24",
+  "open_clip_torch>=3.3,<3.4",
   "numpy>=1.24",
   "pandas>=2.0",
   "scipy>=1.10",
@@ -32,4 +32,3 @@ dev = ["pytest>=8.0"]
 
 [tool.setuptools.packages.find]
 include = ["promptsrc_nc*"]
-

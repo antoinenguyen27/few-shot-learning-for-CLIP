@@ -144,6 +144,30 @@ def read_split(path: str | Path) -> SplitSpec:
     return SplitSpec.from_dict(read_json(path))
 
 
+def validate_split_integrity(split: SplitSpec) -> None:
+    split_lists = {
+        "train": tuple(split.train_ids),
+        "val": tuple(split.val_ids),
+        "test": tuple(split.test_ids),
+        "unlabeled": tuple(split.unlabeled_ids),
+    }
+    for split_name, ids in split_lists.items():
+        if len(set(ids)) != len(ids):
+            raise ValueError(f"Split {split.dataset}/{split.shots}/seed{split.seed} has duplicate IDs in {split_name}")
+    split_sets = {
+        name: set(ids) for name, ids in split_lists.items()
+    }
+    split_items = list(split_sets.items())
+    for left_index, (left_name, left_ids) in enumerate(split_items):
+        for right_name, right_ids in split_items[left_index + 1 :]:
+            overlap = left_ids & right_ids
+            if overlap:
+                first = sorted(overlap)[0]
+                raise ValueError(f"Split {split.dataset}/{split.shots}/seed{split.seed} has {left_name}-{right_name} overlap at {first}")
+    if split.metadata.get("uses_test_images_for_unlabeled") is True:
+        raise ValueError("Primary PromptSRC-NC split forbids test images in the unlabeled pool")
+
+
 def class_names_from_records(records: Iterable[ManifestRecord]) -> list[str]:
     by_label: dict[int, str] = {}
     for record in records:
@@ -718,6 +742,7 @@ def load_split_records(
     dataset = canonical_dataset(dataset)
     records = read_manifest(manifest_path(data_root, dataset))
     split = read_split(split_path(data_root, dataset, protocol, shots, seed))
+    validate_split_integrity(split)
     train = records_by_ids(records, split.train_ids)
     val = records_by_ids(records, split.val_ids)
     test = records_by_ids(records, split.test_ids)
@@ -763,4 +788,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

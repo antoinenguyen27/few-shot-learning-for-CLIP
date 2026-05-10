@@ -154,6 +154,8 @@ class PromptSRCNCConfig:
             raise ValueError("precision must be one of fp32, fp16, amp")
         if self.neighbor_k < 1 or self.fallback_k < 1:
             raise ValueError("neighbor k values must be >= 1")
+        if self.max_unlabeled_images is not None and self.max_unlabeled_images < 1:
+            raise ValueError("max_unlabeled_images must be >= 1 when set")
         if self.pair_mode not in {"real", "shuffled"}:
             raise ValueError("pair_mode must be real or shuffled")
         if self.use_test_images:
@@ -206,4 +208,3 @@ def results_dir(run_root: str | Path, run_id: str) -> Path:
 
 def logs_dir(run_root: str | Path, run_id: str) -> Path:
     return Path(run_root) / run_id / "logs"
-

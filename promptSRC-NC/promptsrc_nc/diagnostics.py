@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .config import PromptSRCNCConfig, neighbor_dir
+from .data import load_split_records
 from .eval import checkpoint_for_ref, load_model_for_checkpoint
 from .losses import entropy_from_logits, js_divergence_from_logits
+from .neighbors import validate_neighbor_artifacts
 from .pair_dataset import _read_jsonl
 from .structured_logging import append_jsonl, read_json, write_json
 from .train import _device_type, _use_amp
@@ -27,6 +29,14 @@ def run_diagnostics(
     pair_dir = Path(pair_dir or neighbor_dir(run_root, config.run_id, config.dataset, config.shots, config.seed))
     model, _loaders, checkpoint = load_model_for_checkpoint(config, data_root, checkpoint_path)
     model.eval()
+    _train, _val, _test, _unlabeled, split, _classnames = load_split_records(
+        data_root,
+        config.dataset,
+        config.shots,
+        config.seed,
+        config.protocol,
+    )
+    validate_neighbor_artifacts(pair_dir, config, split)
     items = _read_jsonl(pair_dir / "unlabeled_items.jsonl")
     pair_payload = torch.load(pair_dir / "real_pairs.pt", map_location="cpu")
     pairs = pair_payload["pairs"].long()
@@ -99,6 +109,7 @@ def config_from_args(args: Any) -> PromptSRCNCConfig:
         eval_batch_size=args.eval_batch_size,
         num_workers=args.num_workers,
         precision=args.precision,
+        max_unlabeled_images=args.max_unlabeled_images,
         run_id=args.run_id,
     )
 
@@ -121,6 +132,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--eval-batch-size", type=int, default=100)
     parser.add_argument("--num-workers", type=int, default=8)
     parser.add_argument("--precision", choices=["fp32", "fp16", "amp"], default="amp")
+    parser.add_argument("--max-unlabeled-images", type=int, default=None)
     args = parser.parse_args(argv)
     config = config_from_args(args)
     checkpoint = args.checkpoint or checkpoint_for_ref(
@@ -137,4 +149,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

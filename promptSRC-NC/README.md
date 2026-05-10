@@ -159,6 +159,7 @@ Outputs:
 ```
 
 Real pairs use mutual top-1 neighbors, with fixed mutual top-5 fallback only if too few pairs are produced. Shuffled pairs use degree-preserving double-edge swaps.
+Neighbor metadata records the full split hash, effective unlabeled ID hash, OpenCLIP backbone/pretrained source, and shuffled-control audit fields. Stage 2, diagnostics, and stage-2 profiling fail closed if these artifacts do not match the active config and split.
 
 ## Stage 1: PromptSRC Baseline
 
@@ -172,6 +173,7 @@ uv run --project promptSRC-NC modal run promptSRC-NC/modal_app.py::train_stage1 
 ```
 
 Stage 1 writes `final.pt` and `gpa.pt`. Stage 2 should use `gpa.pt`.
+Stage 2 also validates the Stage 1 checkpoint provenance, including dataset, shots, seed, protocol, backbone, pretrained source, and split hash.
 
 ## Stage 2: PromptSRC-NC Real and Shuffled
 

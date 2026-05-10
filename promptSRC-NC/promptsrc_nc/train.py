@@ -17,6 +17,8 @@ from .data import build_data_loaders, load_split_records
 from .losses import js_divergence_from_logits, lambda_nc_for_progress, promptsrc_loss
 from .model import PromptSRCModel, build_openclip_bundle, trainable_parameters
 from .pair_dataset import build_pair_loader
+from .provenance import split_hash, validate_checkpoint_for_config
+from .neighbors import validate_neighbor_artifacts
 from .structured_logging import JsonlLogger, append_jsonl, runtime_record, write_json
 
 
@@ -163,6 +165,7 @@ def _save_checkpoint(
     gpa_state: dict[str, Any] | None = None,
     metrics: dict[str, Any] | None = None,
     metadata: dict[str, Any] | None = None,
+    checkpoint_role: str | None = None,
 ) -> Path:
     import torch
 
@@ -172,6 +175,7 @@ def _save_checkpoint(
     payload = {
         "method": method,
         "stage": stage,
+        "checkpoint_role": checkpoint_role or f"{stage}_checkpoint",
         "epoch": epoch,
         "backbone": config.backbone,
         "pretrained": config.pretrained,
@@ -332,7 +336,8 @@ def train_stage1(config: PromptSRCNCConfig, data_root: str | Path, run_root: str
                 prompt_state=current_state,
                 gpa_state=gpa_state,
                 metrics={"val": val_metrics, "train_loss": avg_loss},
-                metadata={"split": split.to_dict()},
+                metadata={"split": split.to_dict(), "split_hash": split_hash(split)},
+                checkpoint_role="stage1_epoch",
             )
         if config.max_train_batches is not None:
             break
@@ -351,7 +356,8 @@ def train_stage1(config: PromptSRCNCConfig, data_root: str | Path, run_root: str
         prompt_state=final_state,
         gpa_state=gpa_state,
         metrics={"best_val_top1": best_val, "val": val_metrics},
-        metadata={"split": split.to_dict(), "gpa_loaded_for_final_inference": False},
+        metadata={"split": split.to_dict(), "split_hash": split_hash(split), "gpa_loaded_for_final_inference": False},
+        checkpoint_role="stage1_final_non_gpa",
     )
     gpa_path = _save_checkpoint(
         ckpt_dir / "gpa.pt",
@@ -364,7 +370,13 @@ def train_stage1(config: PromptSRCNCConfig, data_root: str | Path, run_root: str
         prompt_state=gpa_state or best_state,
         gpa_state=gpa_state,
         metrics={"best_val_top1": best_val, "val": gpa_metrics},
-        metadata={"split": split.to_dict(), "gpa_loaded_for_final_inference": True, "non_gpa_final_checkpoint": str(final_path)},
+        metadata={
+            "split": split.to_dict(),
+            "split_hash": split_hash(split),
+            "gpa_loaded_for_final_inference": True,
+            "non_gpa_final_checkpoint": str(final_path),
+        },
+        checkpoint_role="stage1_gpa",
     )
     write_json(output_dir / "metrics_val.json", {"best_val_top1": best_val, "gpa_val": gpa_metrics})
     append_jsonl(
@@ -387,11 +399,14 @@ def _load_stage1_checkpoint(path: str | Path, config: PromptSRCNCConfig) -> dict
     import torch
 
     checkpoint = torch.load(path, map_location="cpu")
-    if checkpoint.get("method") != "PromptSRC" or checkpoint.get("stage") != "stage1":
-        raise ValueError(f"Stage 2 must initialize from a PromptSRC stage1 checkpoint, got {path}")
-    for key, expected in (("dataset", config.dataset), ("shots", config.shots), ("seed", config.seed), ("backbone", config.backbone)):
-        if checkpoint.get(key) != expected:
-            raise ValueError(f"Checkpoint {path} has {key}={checkpoint.get(key)!r}; expected {expected!r}")
+    validate_checkpoint_for_config(
+        checkpoint,
+        config,
+        artifact=f"Stage 1 checkpoint {path}",
+        expected_method="PromptSRC",
+        expected_stage="stage1",
+        expected_role="stage1_gpa",
+    )
     return checkpoint
 
 
@@ -437,6 +452,16 @@ def train_stage2(
     )
     runtime_logger = JsonlLogger(log_dir / "runtime.jsonl", base={"run_id": config.run_id, "function": "train_stage2"})
     model, loaders, split, _classnames, bundle = build_model_and_loaders(config, data_root)
+    validate_checkpoint_for_config(
+        checkpoint,
+        config,
+        artifact=f"Stage 1 checkpoint {init_checkpoint}",
+        expected_method="PromptSRC",
+        expected_stage="stage1",
+        expected_role="stage1_gpa",
+        split=split,
+    )
+    neighbor_metadata = validate_neighbor_artifacts(pair_artifact_dir, config, split)
     model.load_prompt_state_dict(checkpoint["prompt_state"])
     device = model.device_name
     pair_loader = build_pair_loader(
@@ -539,11 +564,14 @@ def train_stage2(
                 metrics={"val": val_metrics, "train_loss": avg_loss},
                 metadata={
                     "split": split.to_dict(),
+                    "split_hash": split_hash(split),
                     "init_checkpoint": str(init_checkpoint),
                     "neighbor_dir": str(pair_artifact_dir),
+                    "neighbor_metadata": neighbor_metadata,
                     "pair_mode": config.pair_mode,
                     "use_stage2_gpa": False,
                 },
+                checkpoint_role=f"stage2_{config.pair_mode}_epoch",
             )
         if config.max_train_batches is not None:
             break
@@ -559,11 +587,14 @@ def train_stage2(
         metrics={"val": final_metrics},
         metadata={
             "split": split.to_dict(),
+            "split_hash": split_hash(split),
             "init_checkpoint": str(init_checkpoint),
             "neighbor_dir": str(pair_artifact_dir),
+            "neighbor_metadata": neighbor_metadata,
             "pair_mode": config.pair_mode,
             "use_stage2_gpa": False,
         },
+        checkpoint_role=f"stage2_{config.pair_mode}_final",
     )
     write_json(output_dir / "metrics_val.json", final_metrics)
     append_jsonl(
@@ -602,6 +633,7 @@ def config_from_args(args: Any) -> PromptSRCNCConfig:
         pair_mode=args.pair_mode,
         max_train_batches=args.max_train_batches,
         max_eval_batches=args.max_eval_batches,
+        max_unlabeled_images=args.max_unlabeled_images,
         log_interval=args.log_interval,
         save_every=args.save_every,
         run_id=args.run_id,
@@ -637,6 +669,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--neighbor-dir", default="")
     parser.add_argument("--max-train-batches", type=int, default=None)
     parser.add_argument("--max-eval-batches", type=int, default=None)
+    parser.add_argument("--max-unlabeled-images", type=int, default=None)
     parser.add_argument("--log-interval", type=int, default=20)
     parser.add_argument("--save-every", type=int, default=1)
     args = parser.parse_args(argv)

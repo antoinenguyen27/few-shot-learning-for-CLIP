@@ -1511,7 +1511,7 @@ requires-dist = [
     { name = "kagglehub", specifier = ">=0.3" },
     { name = "modal", specifier = ">=1.1.0" },
     { name = "numpy", specifier = ">=1.24" },
-    { name = "open-clip-torch", specifier = ">=2.24" },
+    { name = "open-clip-torch", specifier = ">=3.3,<3.4" },
     { name = "orjson", specifier = ">=3.9" },
     { name = "pandas", specifier = ">=2.0" },
     { name = "pillow", specifier = ">=10.0" },
